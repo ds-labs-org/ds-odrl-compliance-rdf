@@ -1,0 +1,353 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/inherited-agreement-duty-chain-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix cred:  <https://www.w3.org/2018/credentials#> .
+@prefix dpv:   <https://w3id.org/dpv#> .
+@prefix foaf:  <http://xmlns.com/foaf/0.1/> .
+@prefix vcard: <http://www.w3.org/2006/vcard/ns#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# ---------------------------------------------------------------------------
+# Root
+# ---------------------------------------------------------------------------
+
+:testcase a dsc:TestCase ;
+    dct:title "Inherited Agreement: a duty-free permission genuinely conflicts with, and (conflict=perm) beats, a colliding prohibition, whose remedy therefore never fires; a SEPARATE, duty-gated permission for the identical action/target is independently denied by dutyMode=deny via an outstanding duty->consequence chain; a refined print permission gated by purpose AND (riskScore OR recipient OR roles); three-plus claim shapes including an array-valued one." ;
+    dct:created "2026-09-10T09:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a , :report-b .
+
+# ---------------------------------------------------------------------------
+# Assets
+# ---------------------------------------------------------------------------
+
+:dataset-42 a odrl:Asset ;
+    odrl:partOf :collection-genomics .          # asset_collections entry
+
+:collection-genomics a odrl:AssetCollection .
+:notification-log a odrl:Asset .
+:dpo-register a odrl:Asset .
+
+# ---------------------------------------------------------------------------
+# Profile (inline; a local named node, so @id is always concrete)
+# ---------------------------------------------------------------------------
+
+:profile a odrl:Profile ;
+    odrl:action odrl:print, odrl:inform, :escalate ;
+    dsc:dutyMode dsc:Deny ;
+    dsc:behaviour dsc:Closed ;
+    dsc:partyIdentityClaim "partyId" ;
+    dsc:agreementAssigneeClaim "agreementParty" .
+
+odrl:print a odrl:Action ; odrl:includedIn odrl:use .
+odrl:inform a odrl:Action ; odrl:includedIn odrl:use .
+:escalate a odrl:Action ; odrl:includedIn odrl:inform .
+
+# ---------------------------------------------------------------------------
+# Parties and claims — every shape, including array-valued
+# ---------------------------------------------------------------------------
+
+:alice a odrl:Party, foaf:Person ;
+    foaf:mbox <mailto:alice@example.org> ;
+    vcard:role "Principal Investigator" .
+
+# identity claim: value IS the party
+:claim-identity a dsc:ClaimAssertion ;
+    dsc:key "partyId" ;
+    rdf:value :alice ;
+    dct:issued "2026-09-10T09:00:00Z"^^xsd:dateTime .
+
+:claim-agreement-party a dsc:ClaimAssertion ;
+    dsc:key "agreementParty" ;
+    rdf:value :alice ;
+    dct:issued "2026-09-10T09:00:00Z"^^xsd:dateTime .
+
+# verified-credential claim — VC's own credentialSubject is the link
+:vc-clearance a cred:VerifiableCredential ;
+    cred:issuer <https://issuer.example.org/> ;
+    cred:validFrom "2026-01-01T00:00:00Z"^^xsd:dateTime ;
+    cred:credentialSubject :claim-clearance .
+
+:claim-clearance a dsc:ClaimAssertion ;
+    dsc:key "clearanceLevel" ;
+    rdf:value "elevated" .
+
+# bare environment fact
+:claim-session a dsc:ClaimAssertion ;
+    dsc:key "sessionTime" ;
+    rdf:value "2026-09-10T09:00:00Z"^^xsd:dateTime ;
+    dct:issued "2026-09-10T09:00:00Z"^^xsd:dateTime .
+
+# per-party numeric fact — dsc:aboutParty is load-bearing here, since the
+# value (12) is not itself a party
+:claim-risk a dsc:ClaimAssertion ;
+    dsc:key "riskScore" ;
+    rdf:value 12 ;
+    dsc:aboutParty :alice ;
+    dct:issued "2026-09-10T09:00:00Z"^^xsd:dateTime .
+
+# a native ODRL leftOperand ("purpose") resolves via the SAME claims map,
+# by its own local name — see the spec's left-operand resolution rule. The
+# resource-valued rdf:value stringifies to the same IRI the constraint's
+# own odrl:rightOperand dpv:AcademicResearch does, per the comparison
+# convention, so `eq` holds.
+:claim-purpose a dsc:ClaimAssertion ;
+    dsc:key "purpose" ;
+    rdf:value dpv:AcademicResearch ;
+    dct:issued "2026-09-10T09:00:00Z"^^xsd:dateTime .
+
+# array-valued (multi-valued) claim — one node, two rdf:value triples,
+# a set not a list
+:claim-roles a dsc:ClaimAssertion ;
+    dsc:key "roles" ;
+    rdf:value "PI", "reviewer" ;
+    dct:issued "2026-09-10T09:00:00Z"^^xsd:dateTime .
+
+# ---------------------------------------------------------------------------
+# Nested constraint: purpose = AcademicResearch AND
+#   (riskScore <= 20 OR recipient isAnyOf {DataController, ThirdParty}
+#    OR roles isAnyOf {PI, reviewer})
+# ---------------------------------------------------------------------------
+
+:constraint-top a odrl:LogicalConstraint ;
+    odrl:and (
+        [ a odrl:Constraint ;
+          odrl:leftOperand odrl:purpose ;
+          odrl:operator odrl:eq ;
+          odrl:rightOperand dpv:AcademicResearch ]
+        [ a odrl:LogicalConstraint ;
+          odrl:or (
+              [ a odrl:Constraint ;
+                odrl:leftOperand [ a dsc:ClaimKey ; dsc:key "riskScore" ] ;
+                odrl:operator odrl:lteq ;
+                odrl:rightOperand 20 ]
+              [ a odrl:Constraint ;
+                odrl:leftOperand odrl:recipient ;
+                odrl:operator odrl:isAnyOf ;
+                odrl:rightOperand dpv:DataController, dpv:ThirdParty ]
+              [ a odrl:Constraint ;
+                odrl:leftOperand [ a dsc:ClaimKey ; dsc:key "roles" ] ;
+                odrl:operator odrl:isAnyOf ;
+                odrl:rightOperand "PI", "reviewer" ]
+          ) ]
+    ) .
+
+# ---------------------------------------------------------------------------
+# Rules
+#
+# Two permissions for the SAME action (print) and target (dataset-42):
+# :perm-print-clean is duty-free and is the one that genuinely conflicts
+# with, and beats, :proh-print. :perm-print-dutied carries the outstanding
+# duty chain and is independently denied by dutyMode=deny -- structurally
+# separate because the real engine excludes a duty-gated permission from
+# conflict resolution entirely.
+# ---------------------------------------------------------------------------
+
+:perm-print-clean a odrl:Permission ;
+    odrl:target :dataset-42 ;
+    odrl:action [
+        rdf:value odrl:print ;
+        odrl:refinement [
+            a odrl:Constraint ;
+            odrl:leftOperand odrl:count ;
+            odrl:operator odrl:lteq ;
+            odrl:rightOperand 2
+        ]
+    ] ;
+    odrl:constraint :constraint-top .
+
+:perm-print-dutied a odrl:Permission ;
+    odrl:target :dataset-42 ;
+    odrl:action odrl:print ;
+    odrl:duty :duty-notify .
+
+:duty-notify a odrl:Duty ;
+    odrl:action odrl:inform ;
+    odrl:target :notification-log ;
+    odrl:consequence :duty-escalate .
+    # no odrl:constraint -- an unconstrained duty is the opposite of an
+    # unconstrained permission/prohibition: it is unresolved, not
+    # vacuously satisfied -- so this duty is ALWAYS outstanding, by
+    # design, to exercise the chain.
+
+:duty-escalate a odrl:Duty ;
+    odrl:action :escalate ;
+    odrl:target :dpo-register .
+
+:proh-print a odrl:Prohibition ;
+    odrl:target :dataset-42 ;
+    odrl:action odrl:print ;
+    odrl:remedy :remedy-notify-dpo .
+
+:remedy-notify-dpo a odrl:Duty ;
+    odrl:action odrl:inform ;
+    odrl:target :dpo-register .
+
+# ---------------------------------------------------------------------------
+# Policies
+# ---------------------------------------------------------------------------
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:permission :perm-print-clean, :perm-print-dutied .
+
+:policy-b a odrl:Agreement ;
+    dsc:inheritsFrom ( :policy-a ) ;    # replicates BOTH permissions; assigner left UNSET
+                                         # here so it inherits did:web:provider.example
+    odrl:assignee :alice ;              # SET here -> authoritative, not inherited
+    odrl:prohibition :proh-print ;      # same action+target as the inherited permissions
+    odrl:conflict odrl:perm .           # consulted only for the permission that actually
+                                         # grants and collides -- see :report-b below
+
+:request a dsc:Request ;
+    odrl:target :dataset-42 ;
+    odrl:action odrl:print ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a, :policy-b ;
+    dsc:claim :claim-identity, :claim-agreement-party, :claim-clearance,
+              :claim-session, :claim-risk, :claim-purpose, :claim-roles .
+
+# ---------------------------------------------------------------------------
+# Expected outcome
+#
+# report:policyRequest expects an odrl:Request-KIND POLICY (one of ODRL's
+# own 7 policy kinds) -- a different thing from :request (a dsc:Request,
+# the wire-contract JSON envelope). :the-ask is that small mirror, built
+# only to populate this one optional report: property.
+# ---------------------------------------------------------------------------
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:print ; odrl:target :dataset-42 ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-print-clean , :rr-a-print-dutied ,
+                       :rr-a-duty-notify , :rr-a-duty-escalate .
+
+# --- the duty-free, conflict-eligible permission: genuinely grants ---
+
+:rr-a-print-clean a report:PermissionReport ;
+    report:rule :perm-print-clean ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-a-constraint, :pr-a-action, :pr-a-target, :pr-a-party .
+
+:pr-a-constraint a report:ConstraintReport ; report:satisfactionState report:Satisfied .
+:pr-a-action     a report:ActionReport     ; report:satisfactionState report:Satisfied .
+:pr-a-target     a report:TargetReport     ; report:satisfactionState report:Satisfied .
+:pr-a-party      a report:PartyReport      ; report:satisfactionState report:Satisfied .
+    # policy-a sets no odrl:assignee, so partyIdentityClaim has nothing to
+    # check against -- vacuously Satisfied.
+
+# --- the duty-gated permission: does NOT grant, per DutyMode::Deny ---
+# report:conditionReport's own definition: "When [the duty is] Violated,
+# it is not allowed for the Permission Report to be Active." -- honored
+# exactly.
+
+:rr-a-print-dutied a report:PermissionReport ;
+    report:rule :perm-print-dutied ;
+    report:activationState report:Inactive ;
+    report:attemptState report:Attempted ;      # same action+target as the request
+    report:performanceState report:Unperformed ; # Inactive PERMISSION: a definite statement is warranted
+    report:deonticState report:NonSet ;          # Inactive+Unperformed contradicts nothing for a permission
+    report:conditionReport :rr-a-duty-notify ;
+    report:premiseReport :pr-a-dutied-action, :pr-a-dutied-target .
+    # no ConstraintReport: :perm-print-dutied carries no odrl:constraint.
+
+:pr-a-dutied-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-dutied-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-duty-notify a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+    # no report:attemptState -- outside its declared domain.
+
+:rr-a-duty-escalate a report:DutyReport ;
+    report:rule :duty-escalate ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+    # duty-notify's own odrl:consequence, reported as a SIBLING
+    # report:ruleReport under the SAME PolicyReport it was evaluated in,
+    # recoverable by any consumer walking report:rule back into the
+    # source graph's own odrl:consequence edge.
+
+:report-b a report:PolicyReport ;
+    report:policy :policy-b ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-b-print-clean-inherited , :rr-b-print-dutied-inherited ,
+                       :rr-b-duty-notify-inherited , :rr-b-duty-escalate-inherited ,
+                       :rr-b-proh-print , :rr-b-remedy .
+
+# --- the inherited duty-free permission: NOW genuinely conflicts with
+# :proh-print (both apply/match/grant for print/dataset-42), and
+# conflict=perm lets it win ---
+
+:rr-b-print-clean-inherited a report:PermissionReport ;
+    report:rule :perm-print-clean ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;   # conflict=perm: this permission wins
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-b-constraint, :pr-b-action, :pr-b-target, :pr-b-party .
+
+:pr-b-constraint a report:ConstraintReport ; report:satisfactionState report:Satisfied .
+:pr-b-action     a report:ActionReport     ; report:satisfactionState report:Satisfied .
+:pr-b-target     a report:TargetReport     ; report:satisfactionState report:Satisfied .
+:pr-b-party      a report:PartyReport      ; report:satisfactionState report:Satisfied .
+    # agreementAssigneeClaim="agreementParty" resolves via claims to
+    # :alice's own IRI, matching policy-b's own odrl:assignee :alice.
+
+# --- the inherited duty-gated permission: still does not grant; the
+# SAME duty gate applies (claims are shared across the whole Request) ---
+
+:rr-b-print-dutied-inherited a report:PermissionReport ;
+    report:rule :perm-print-dutied ;
+    report:activationState report:Inactive ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:conditionReport :rr-b-duty-notify-inherited ;
+    report:premiseReport :pr-b-dutied-action, :pr-b-dutied-target .
+
+:pr-b-dutied-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-b-dutied-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-b-duty-notify-inherited a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+
+:rr-b-duty-escalate-inherited a report:DutyReport ;
+    report:rule :duty-escalate ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+
+# --- the prohibition: applies and matches, but LOSES the real conflict
+# against :perm-print-clean (conflict=perm) -- superseded ---
+
+:rr-b-proh-print a report:ProhibitionReport ;
+    report:rule :proh-print ;
+    report:activationState report:Inactive ;       # superseded by conflict=perm
+    report:attemptState report:Attempted ;          # same action+target as the request
+    report:performanceState report:Unknown ;        # Inactive PROHIBITION: report:Inactive's own text says
+                                                     # "no statements can be made" -- Unknown, not Unperformed
+    report:deonticState report:NonSet .
+
+:rr-b-remedy a report:DutyReport ;
+    report:rule :remedy-notify-dpo ;
+    report:activationState report:Inactive ;       # a remedy of a superseded prohibition never fires
+    report:performanceState report:Unknown ;        # Inactive DUTY: same "no statements can be made" rule
+    report:deonticState report:NonSet .

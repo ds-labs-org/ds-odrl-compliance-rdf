@@ -1,0 +1,25 @@
+[[node_packages]]
+name = "@patternfly/patternfly"
+version = "6.4.0"
+
+[[node_packages]]
+name = "@fortawesome/fontawesome-free"
+version = "7.1.0"
+
+# build.rs writes generated/test-index.json as a side effect of running
+# (a fixed path in the source tree, not OUT_DIR -- see build.rs's own
+# header comment). Trunk's own asset pipeline (index.html's `copy-file`
+# directive for that same file) canonicalizes/copies its declared assets
+# concurrently with its internal `cargo build`, not strictly after it --
+# confirmed on this exact pattern in the sibling ds-odrl-engine-rs and
+# dataspace sites (see their site/Trunk.toml's own pre_build hook
+# comments): a clean checkout's first build can fail with "No such file
+# or directory" on generated/, and even once it exists, a build that
+# changes cases/ can copy a stale snapshot into dist/. This hook forces
+# build.rs to run and finish before Trunk's asset-copy stage starts, so
+# generated/test-index.json is already correct and no longer changing by
+# the time index.html's copy-file directive reads it.
+[[hooks]]
+stage = "pre_build"
+command = "cargo"
+command_arguments = ["check"]

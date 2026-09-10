@@ -1,0 +1,25 @@
+[package]
+name = "ds-odrl-compliance-rdf-site"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/ds-labs-org/ds-odrl-compliance-rdf"
+description = "Browsable GitHub Pages site for the ds-odrl-compliance-rdf test-case corpus: renders the dsc: vocabulary and lists the RDF/Turtle test cases under cases/."
+publish = false
+
+[dependencies]
+console_error_panic_hook = "0.1"
+console_log = "1"
+fern = "0.7"
+log = "0.4"
+patternfly-yew = { version = "0.8", features = ["experimental"] }
+yew = "0.23"
+yew-nested-router = { version = "0.9.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+gloo-net = "0.6"
+wasm-bindgen-futures = "0.4"
+
+[build-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

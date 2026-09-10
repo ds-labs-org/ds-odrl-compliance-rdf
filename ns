@@ -1,0 +1,74 @@
+@prefix dsc:  <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix cred: <https://www.w3.org/2018/credentials#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns> a owl:Ontology ;
+    dct:title "ds-odrl-compliance-rdf extension vocabulary"@en ;
+    dct:description "The residual terms needed to represent the ds-odrl-engine-rs Section 5.2 wire contract natively in RDF, beyond what ODRL 2.2, FOAF, vCard, schema.org, the W3C Verifiable Credentials Data Model 2.0, W3C DPV, and the FORCE compliance-report vocabulary already provide. Reuses odrl:Profile for the wire contract's own config envelope rather than minting a competing class."@en ;
+    vann:preferredNamespacePrefix "dsc" ;
+    vann:preferredNamespaceUri "https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#" ;
+    owl:versionInfo "0.2.0" .
+
+dsc:TestCase a owl:Class ;
+    rdfs:comment "One self-contained ODRL compliance test case: a Request under test plus its expected report:PolicyReport outcome(s)." .
+
+dsc:Request a owl:Class ;
+    rdfs:comment "The exact wire-contract Request object: target asset, requested action, profile, policies under test, and claims." .
+
+dsc:ClaimAssertion a owl:Class ;
+    rdfs:comment "One entry of the wire contract's flat claims map, for a fact not already carried by odrl:Party, a Verifiable Credential's own envelope, or DPV. May carry more than one rdf:value for a multi-valued (array) claim." .
+
+dsc:ClaimKey a owl:Class ;
+    rdfs:subClassOf odrl:LeftOperand ;
+    rdfs:comment "A constraint left-operand that resolves, at evaluation time, to a named entry of the request's claims map." .
+
+dsc:DutyMode a owl:Class ; rdfs:comment "Enumeration: advise | deny (wire: config.dutyMode)." .
+dsc:Advise a dsc:DutyMode ; rdfs:comment "An unfulfilled duty is reported but does not deny the permission it governs." .
+dsc:Deny   a dsc:DutyMode ; rdfs:comment "An unfulfilled duty denies the permission it governs, unconditionally, and excludes that permission from odrl:conflict resolution while outstanding." .
+
+dsc:Behaviour a owl:Class ; rdfs:comment "Enumeration: open | closed (wire: config.behaviour; ODRL Formal Semantics CG's own parameter)." .
+dsc:Open   a dsc:Behaviour ; rdfs:comment "An action neither permitted nor prohibited is allowed." .
+dsc:Closed a dsc:Behaviour ; rdfs:comment "An action neither permitted nor prohibited is denied." .
+
+dsc:request a owl:ObjectProperty ; rdfs:domain dsc:TestCase ; rdfs:range dsc:Request ;
+    rdfs:comment "The Request this test case evaluates." .
+
+dsc:expectedOutcome a owl:ObjectProperty ; rdfs:domain dsc:TestCase ; rdfs:range report:PolicyReport ;
+    rdfs:comment "An expected outcome tree, one per policy under test." .
+
+dsc:profile a owl:ObjectProperty ; rdfs:domain dsc:Request ; rdfs:range odrl:Profile ;
+    rdfs:comment "The engine profile governing this Request, inline or by reference (by-reference: at the referenced document's fixed #profile fragment)." .
+
+dsc:policy a owl:ObjectProperty ; rdfs:domain dsc:Request ; rdfs:range odrl:Policy ;
+    rdfs:comment "One member of the Request's policies array." .
+
+dsc:claim a owl:ObjectProperty ; rdfs:domain dsc:Request ; rdfs:range dsc:ClaimAssertion ;
+    rdfs:comment "One entry of the Request's flat claims map." .
+
+dsc:inheritsFrom a owl:ObjectProperty ; rdfs:domain odrl:Policy ; rdfs:range rdf:List ;
+    rdfs:comment "Ordered list of parent policies (same Request) whose rules and unset assigner/assignee this policy replicates before evaluation. Wire: policy.inheritFrom. Precedence: first-listed non-empty parent wins for assigner/assignee; permission/prohibition/obligation sets are unioned across all ancestors regardless of order." .
+
+dsc:dutyMode a owl:ObjectProperty ; rdfs:domain odrl:Profile ; rdfs:range dsc:DutyMode .
+dsc:behaviour a owl:ObjectProperty ; rdfs:domain odrl:Profile ; rdfs:range dsc:Behaviour .
+
+dsc:partyIdentityClaim a owl:DatatypeProperty ; rdfs:domain odrl:Profile ; rdfs:range xsd:string ;
+    rdfs:comment "Claims-map key checked against every policy's odrl:assignee." .
+
+dsc:agreementAssigneeClaim a owl:DatatypeProperty ; rdfs:domain odrl:Profile ; rdfs:range xsd:string ;
+    rdfs:comment "Claims-map key checked against odrl:assignee, Agreement-kind policies only." .
+
+dsc:key a owl:DatatypeProperty ; rdfs:range xsd:string ;
+    rdfs:comment "The claims-map key a ClaimAssertion or ClaimKey concerns. Domain deliberately unrestricted." .
+
+dsc:aboutParty a owl:ObjectProperty ; rdfs:domain dsc:ClaimAssertion ; rdfs:range odrl:Party ;
+    rdfs:comment "Which party a claim concerns, when the claim's value is not itself that party. Documentary, not part of the wire translation. Applies to a multi-valued claim as a whole." .
+
+dsc:policyKind a owl:DatatypeProperty ; rdfs:domain odrl:Policy ; rdfs:range xsd:string ;
+    rdfs:comment "The literal policy.kind wire string, used only when it names none of ODRL 2.2's seven native odrl:Policy subclasses. Never asserted alongside a native rdf:type for one of those seven." .

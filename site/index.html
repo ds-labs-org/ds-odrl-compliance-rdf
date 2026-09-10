@@ -1,0 +1,76 @@
+<html lang="en">
+<head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>ds-odrl-compliance-rdf</title>
+
+    <!-- GitHub Pages SPA redirect, part 2 of 2 -- see site/404.html for
+         part 1. Runs before Trunk's own bootstrap script fetches and
+         instantiates this app's wasm module (emitted later in this
+         document), and rewrites a redirected URL back to the real path
+         with `history.replaceState` so `yew_nested_router`'s
+         `Router<AppRoute>` (src/app_route.rs, src/main.rs) boots straight
+         into the intended route instead of flashing Home first. A no-op
+         on every ordinary load, including an in-app client-side
+         navigation. -->
+    <script type="text/javascript">
+      (function (l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function (s) {
+            return s.replace(/~and~/g, '&');
+          }).join('?');
+          window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+        }
+      })(window.location);
+    </script>
+
+    <!-- data-trunk-public-url stamps this <base href> from Trunk's own
+         --public-url at build time ("/ds-odrl-compliance-rdf/" for the
+         GitHub Pages deploy, "/" for a local `trunk serve`). Every
+         relative URL on this page -- including the runtime fetches of
+         "ns.ttl" (src/vocabulary_page.rs) and "data/test-index.json"
+         (src/tests_page.rs) -- resolves against this <base> rather than
+         the document's own request path. -->
+    <base data-trunk-public-url />
+
+    <link data-trunk rel="sass" href="target/node_modules/@patternfly/patternfly/6.4.0/patternfly.scss">
+    <link data-trunk rel="sass" href="target/node_modules/@patternfly/patternfly/6.4.0/patternfly-addons.scss">
+    <link data-trunk rel="copy-dir" href="target/node_modules/@patternfly/patternfly/6.4.0/assets" data-target-path="assets/">
+
+    <link data-trunk rel="copy-dir" href="target/node_modules/@fortawesome/fontawesome-free/7.1.0/webfonts">
+
+    <!-- The vocabulary, verbatim -- copied to the site root at both
+         /ns.ttl and /ns so the Vocabulary page's runtime fetch (and any
+         external tool dereferencing the literal namespace IRI
+         "https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#") gets
+         real Turtle bytes back. See README.md's "Known limitations"
+         section for why /ns can't get correct Content-Type negotiation
+         on plain GitHub Pages. -->
+    <link data-trunk rel="copy-file" href="../ns.ttl" />
+    <link data-trunk rel="copy-file" href="../ns" />
+
+    <!-- The Browse Tests page's generated case index -- see build.rs and
+         Trunk.toml's pre_build hook comment for why this file already
+         exists and has stopped changing by the time this directive runs.
+         data-target-path is a target DIRECTORY (source basename
+         preserved), landing this at dist/data/test-index.json -- kept
+         out of dist/'s root and out of any directory named "tests" to
+         avoid colliding with this app's own "/tests" route (an
+         identically-named dist/ directory with no index.html of its own
+         would make a direct hit on "/tests" 404 before the SPA router
+         ever ran; see the sibling ds-odrl-engine-rs site's index.html for
+         the same class of collision documented in depth). -->
+    <link data-trunk rel="copy-file" href="generated/test-index.json" data-target-path="data/" />
+
+    <!-- GitHub Pages' own 404 page for this site, wired into the Trunk
+         build so it's produced on every build and can't drift from
+         index.html's matching redirect-decode script above. See
+         site/404.html for the full mechanics. No data-target-path: lands
+         at dist/404.html, exactly where GitHub Pages looks for a static
+         host's custom 404 response. -->
+    <link data-trunk rel="copy-file" href="404.html" />
+</head>
+<body>
+</body>
+</html>
