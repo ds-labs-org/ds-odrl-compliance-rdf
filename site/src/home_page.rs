@@ -58,7 +58,7 @@ pub fn HomePage() -> Html {
         </CardBody>
       </Card>
       <Alert r#type={AlertType::Info} title="Early v1" inline=true>
-        { "This is an early v1: one worked test case, no automated submission flow yet. See the "
+        { "This is an early v1: a small, growing corpus of worked test cases, no automated submission flow yet. See the "
           }<Link<AppRoute> to={AppRoute::Submit}>{ "Submit" }</Link<AppRoute>>{ " page for the manual PR path, "
           }{ "and " }
         <a href={format!("{REPO_URL}#readme")} target="_blank">{ "the README" }</a>

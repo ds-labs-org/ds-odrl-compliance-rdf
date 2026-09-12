@@ -1,0 +1,72 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/open-behaviour-default-allow-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Root
+:testcase a dsc:TestCase ;
+    dct:title "Open behaviour: an action addressed by no rule anywhere in the single policy under test is still allowed by default" ;
+    dct:created "2026-09-12T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a .
+
+:asset-archive a odrl:Asset .
+:asset-log     a odrl:Asset .
+
+# Profile -- the whole point of this case: dsc:behaviour dsc:Open
+:profile a odrl:Profile ;
+    odrl:action odrl:print, odrl:read ;
+    dsc:behaviour dsc:Open .
+
+# Policy under test: exactly ONE rule, for a DIFFERENT action/target than
+# the request below -- it neither permits nor prohibits the requested
+# action at all.
+:perm-print a odrl:Permission ;
+    odrl:target :asset-archive ;
+    odrl:action odrl:print .
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:permission :perm-print .
+
+:request a dsc:Request ;
+    odrl:target :asset-log ;
+    odrl:action odrl:read ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+    # No dsc:claim entries: :perm-print carries no odrl:constraint, and no
+    # rule in :policy-a addresses :asset-log/odrl:read.
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :asset-log ] .
+
+# Expected outcome: :policy-a's only rule (:perm-print) is reported below
+# on its OWN terms (print/asset-archive), unconditionally granted. There
+# is NO report:ruleReport for the request's actual action/target (read/
+# asset-log) -- :policy-a contains no permission or prohibition addressing
+# it. Per dsc:Open ("An action neither permitted nor prohibited is
+# allowed"), the requested read is allowed precisely BECAUSE no rule
+# exists to report on it. The same policy/request under dsc:Closed would
+# deny the read for the identical reason -- see the Closed sibling,
+# cases/closed-behaviour-prohibition-with-remedy-01.ttl.
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm-print .
+
+:rr-a-perm-print a report:PermissionReport ;
+    report:rule :perm-print ;
+    report:activationState report:Active ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-a-action, :pr-a-target .
+    # No report:attemptState: this permission's action/target (print/
+    # asset-archive) doesn't match the request under test (read/asset-log)
+    # -- reported purely because it's :policy-a's one rule, unconditional.
+
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .

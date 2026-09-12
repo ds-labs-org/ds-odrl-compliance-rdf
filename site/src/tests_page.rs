@@ -3,6 +3,9 @@ use patternfly_yew::prelude::*;
 use serde::Deserialize;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
+use yew_nested_router::components::Link;
+
+use crate::app_route::AppRoute;
 
 const REPO_BLOB_BASE: &str = "https://github.com/ds-labs-org/ds-odrl-compliance-rdf/blob/main";
 
@@ -53,12 +56,15 @@ pub fn TestsPage() -> Html {
     Some(Ok(entries)) => html! {
       <ul class="dsc-case-list">
         { for entries.iter().map(|entry| {
-          let href = format!("{REPO_BLOB_BASE}/{}", entry.path);
+          let raw_href = format!("{REPO_BLOB_BASE}/{}", entry.path);
           html! {
             <li key={entry.slug.clone()}>
-              <a href={href} target="_blank">{ entry.title.clone() }</a>
+              <Link<AppRoute> to={AppRoute::TestDetail { slug: entry.slug.clone() }}>{ entry.title.clone() }</Link<AppRoute>>
               { " " }
               <code>{ entry.slug.clone() }</code>
+              { " (" }
+              <a href={raw_href} target="_blank">{ "view raw on GitHub" }</a>
+              { ")" }
             </li>
           }
         }) }
@@ -71,7 +77,7 @@ pub fn TestsPage() -> Html {
       <Title level={Level::H1}>{ "Browse Tests" }</Title>
       <p>
         { "Every RDF/Turtle test case currently checked into " }<code>{ "cases/" }</code>
-        { ", linking to its raw file on GitHub." }
+        { " -- click a title to view it in-app, or use the raw GitHub link." }
       </p>
       { body }
     </Content>

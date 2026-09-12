@@ -63,6 +63,14 @@
          the same class of collision documented in depth). -->
     <link data-trunk rel="copy-file" href="generated/test-index.json" data-target-path="data/" />
 
+    <!-- The raw test-case files themselves, for the Test Detail page's
+         runtime fetch (src/test_detail_page.rs) -- landed at dist/cases/,
+         a directory name that collides with none of this app's own
+         AppRoute variants ("", "vocabulary", "tests", "test", "submit"),
+         so a direct hit on "/cases/<slug>.ttl" resolves to a real static
+         file rather than ever reaching the SPA router. -->
+    <link data-trunk rel="copy-dir" href="../cases" />
+
     <!-- GitHub Pages' own 404 page for this site, wired into the Trunk
          build so it's produced on every build and can't drift from
          index.html's matching redirect-decode script above. See

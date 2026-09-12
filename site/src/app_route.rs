@@ -18,6 +18,8 @@ pub enum AppRoute {
   Vocabulary,
   #[target(rename = "tests")]
   Tests,
+  #[target(rename = "test")]
+  TestDetail { slug: String },
   #[target(rename = "submit")]
   Submit,
 }

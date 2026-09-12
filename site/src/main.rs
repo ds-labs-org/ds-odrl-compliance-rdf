@@ -9,6 +9,8 @@ mod submit_page;
 #[cfg(target_arch = "wasm32")]
 mod switch_app_route;
 #[cfg(target_arch = "wasm32")]
+mod test_detail_page;
+#[cfg(target_arch = "wasm32")]
 mod tests_page;
 #[cfg(target_arch = "wasm32")]
 mod vocabulary_page;

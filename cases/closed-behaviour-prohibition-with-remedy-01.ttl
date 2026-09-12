@@ -1,0 +1,85 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/closed-behaviour-prohibition-with-remedy-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Root
+:testcase a dsc:TestCase ;
+    dct:title "Closed behaviour: a single prohibition that genuinely applies triggers its own odrl:remedy duty, which is reported as an outstanding, violated sibling rule" ;
+    dct:created "2026-09-12T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a .
+
+:asset-medical-record a odrl:Asset .
+:dpo-register         a odrl:Asset .
+
+# Profile -- dsc:Closed is not load-bearing for the outcome here (an
+# explicit, matching prohibition denies under either behaviour), but is
+# set for symmetry with the Open sibling, open-behaviour-default-allow-01.ttl.
+:profile a odrl:Profile ;
+    odrl:action odrl:transfer, odrl:inform ;
+    dsc:behaviour dsc:Closed .
+
+# Policy under test: exactly ONE rule, a prohibition whose action/target
+# match the request exactly, so it genuinely applies -- no permission, no
+# conflict, no inheritance, isolating the remedy-chain reporting shape.
+:proh-transfer a odrl:Prohibition ;
+    odrl:target :asset-medical-record ;
+    odrl:action odrl:transfer ;
+    odrl:remedy :remedy-notify-dpo .
+
+:remedy-notify-dpo a odrl:Duty ;
+    odrl:action odrl:inform ;
+    odrl:target :dpo-register .
+    # No odrl:constraint -- like the worked example's :duty-notify, left
+    # permanently outstanding, so this case always exercises the remedy.
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:prohibition :proh-transfer .
+
+:request a dsc:Request ;
+    odrl:target :asset-medical-record ;
+    odrl:action odrl:transfer ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+    # No dsc:claim entries: neither the prohibition nor its remedy duty
+    # carries a constraint.
+
+:the-ask a odrl:Request ;
+    odrl:prohibition [ a odrl:Prohibition ; odrl:action odrl:transfer ; odrl:target :asset-medical-record ] .
+
+# Expected outcome: the prohibition genuinely applies (Active) and the
+# requested action matches it exactly, so attempting it violates the
+# prohibition -- precisely when odrl:remedy governs. Following the worked
+# example's convention (:rr-b-remedy in
+# inherited-agreement-duty-chain-01.ttl), the remedy duty is reported as a
+# SEPARATE, sibling report:ruleReport under the same PolicyReport, not
+# nested inside the prohibition's own report.
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-proh-transfer , :rr-a-remedy .
+
+:rr-a-proh-transfer a report:ProhibitionReport ;
+    report:rule :proh-transfer ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Violated ;
+    report:premiseReport :pr-a-action, :pr-a-target .
+
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-remedy a report:DutyReport ;
+    report:rule :remedy-notify-dpo ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+    # No report:attemptState -- outside report:DutyReport's declared
+    # domain (docs/vocabulary-spec.md section 3).
