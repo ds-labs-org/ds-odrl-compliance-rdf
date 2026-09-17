@@ -6,67 +6,76 @@
 @prefix dct:   <http://purl.org/dc/terms/> .
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 
-# Root
+# CORRECTED 2026-09-17 (was factually wrong since this file's own
+# original 2026-09-12 authoring -- one of the two placeholder "dummy"
+# fixtures f0853d5 added before this corpus had any real engine
+# verification at all). Caught by `ds-odrl-engine-rs`'s own new, general
+# `compliance-rdf-runner`, which is the first tool ever to actually run
+# this file's Turtle against the real engine rather than trust a
+# hand-transcription of it: the original version gave :policy-a exactly
+# ONE permission (:perm-print, for a DIFFERENT action/target than the
+# request) and claimed the vacuous `dsc:Open` default-allow still applied
+# because "no rule addresses the requested action". That is not what
+# Section 4.3's Behaviour::Open vacuous exception actually says --
+# `engine::decision::decide`'s own doc comment is explicit that it governs
+# *only* a policy whose `permissions` list is genuinely EMPTY; a
+# non-empty list that simply never matches the request denies under
+# EITHER behaviour setting, exactly as a matching-but-unsatisfied
+# permission always did. Confirmed directly against the real engine (a
+# scratch `engine::evaluate_request_detailed` call over the original
+# file's own hand-transcribed wire JSON): the original file's claimed
+# Active/Performed/Fulfilled outcome for :perm-print was wrong: the real
+# engine reports Inactive/Unperformed/NonSet for it and denies the
+# request outright ("no permission ... covered and matched requested
+# action 'read' (closed default)"), the opposite of this file's own
+# stated point. Fixed here by removing :perm-print entirely, so
+# :policy-a's `permissions` list is genuinely empty and the vacuous
+# exception this case exists to demonstrate is the one actually being
+# exercised.
+
 :testcase a dsc:TestCase ;
-    dct:title "Open behaviour: an action addressed by no rule anywhere in the single policy under test is still allowed by default" ;
+    dct:title "Open behaviour: a policy with a genuinely EMPTY permissions list still allows any action by default" ;
     dct:created "2026-09-12T00:00:00Z"^^xsd:dateTime ;
     dct:creator <mailto:shared-claude@unxwares.com> ;
     dsc:request :request ;
     dsc:expectedOutcome :report-a .
 
-:asset-archive a odrl:Asset .
-:asset-log     a odrl:Asset .
+:asset-log a odrl:Asset .
 
 # Profile -- the whole point of this case: dsc:behaviour dsc:Open
 :profile a odrl:Profile ;
-    odrl:action odrl:print, odrl:read ;
+    odrl:action odrl:read ;
     dsc:behaviour dsc:Open .
 
-# Policy under test: exactly ONE rule, for a DIFFERENT action/target than
-# the request below -- it neither permits nor prohibits the requested
-# action at all.
-:perm-print a odrl:Permission ;
-    odrl:target :asset-archive ;
-    odrl:action odrl:print .
-
+# Policy under test: NO permissions, NO prohibitions, NO obligations at
+# all -- the actual shape Section 4.3's vacuous exception is about. A
+# policy carrying a permission that simply fails to match (this file's
+# own original, incorrect construction) does NOT qualify: see this file's
+# own 2026-09-17 correction note above.
 :policy-a a odrl:Set ;
-    odrl:assigner <did:web:provider.example> ;
-    odrl:permission :perm-print .
+    odrl:assigner <did:web:provider.example> .
 
 :request a dsc:Request ;
     odrl:target :asset-log ;
     odrl:action odrl:read ;
     dsc:profile :profile ;
     dsc:policy :policy-a .
-    # No dsc:claim entries: :perm-print carries no odrl:constraint, and no
-    # rule in :policy-a addresses :asset-log/odrl:read.
+    # No dsc:claim entries: :policy-a has no rule of any kind to match
+    # constraints against.
 
 :the-ask a odrl:Request ;
     odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :asset-log ] .
 
-# Expected outcome: :policy-a's only rule (:perm-print) is reported below
-# on its OWN terms (print/asset-archive), unconditionally granted. There
-# is NO report:ruleReport for the request's actual action/target (read/
-# asset-log) -- :policy-a contains no permission or prohibition addressing
-# it. Per dsc:Open ("An action neither permitted nor prohibited is
-# allowed"), the requested read is allowed precisely BECAUSE no rule
-# exists to report on it. The same policy/request under dsc:Closed would
-# deny the read for the identical reason -- see the Closed sibling,
-# cases/closed-behaviour-prohibition-with-remedy-01.ttl.
+# Expected outcome: :policy-a declares no permissions at all, so under
+# dsc:Open the permission requirement is met vacuously and the request is
+# allowed -- with no rule of any kind to report on, report:ruleReport is
+# empty. The same policy/request under dsc:Closed would deny (see the
+# Closed sibling, cases/closed-behaviour-prohibition-with-remedy-01.ttl,
+# which instead demonstrates the Closed default via an explicit,
+# genuinely-applying prohibition rather than an empty rule set, since an
+# EMPTY policy under Closed and an empty policy under Open differ only in
+# this one vacuous-permission-requirement branch, which is exactly what
+# this file's own dsc:Open setting isolates).
 :report-a a report:PolicyReport ;
     report:policy :policy-a ;
-    report:policyRequest :the-ask ;
-    report:ruleReport :rr-a-perm-print .
-
-:rr-a-perm-print a report:PermissionReport ;
-    report:rule :perm-print ;
-    report:activationState report:Active ;
-    report:performanceState report:Performed ;
-    report:deonticState report:Fulfilled ;
-    report:premiseReport :pr-a-action, :pr-a-target .
-    # No report:attemptState: this permission's action/target (print/
-    # asset-archive) doesn't match the request under test (read/asset-log)
-    # -- reported purely because it's :policy-a's one rule, unconditional.
-
-:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
-:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+    report:policyRequest :the-ask .
