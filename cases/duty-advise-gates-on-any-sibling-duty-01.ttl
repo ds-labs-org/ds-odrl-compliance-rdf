@@ -1,0 +1,134 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/duty-advise-gates-on-any-sibling-duty-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# HISTORY: this file was originally authored (6272ac0) as
+# duty-mode-deny-gates-on-any-sibling-duty-01.ttl, targeting a SUSPECTED
+# bug in `decision::derive_detailed_rule_reports`'s `duty_gate_violated`
+# local, which inspects only `rule.duty.first()` and never later sibling
+# `odrl:duty` entries. That first version ran the scenario under
+# dsc:dutyMode dsc:Deny and shipped with a comment concluding the bug was
+# NOT reachable there, because `Rule::grants`'s own `duties_resolved`
+# already checks EVERY sibling duty (`self.duty.iter().all(...)`) before
+# `duty_gate_violated` is ever consulted, so `permission_grants[..]`'s own
+# `!permission_grants[..]` branch already produces the correct `Inactive`
+# regardless of `duty_gate_violated`'s limitation.
+#
+# That conclusion was correct as far as it went, but left the actual bug
+# unconfirmed by any fixture -- ds-odrl-engine-rs's own re-investigation
+# (v0.23.2 writeup) ran this exact two-duty scenario under
+# dsc:dutyMode dsc:Advise instead and confirmed, by actually executing it
+# against the live v0.23.1 engine, that THAT is where `duty_gate_violated`
+# is live code: under dsc:Advise, `grants()` does not consult duties at
+# all (`config.duty_mode != DutyMode::Deny` short-circuits the check), so
+# `duty_gate_violated` -- and only that local -- is what is supposed to
+# force a permission `Inactive` when one of its own duties is genuinely
+# violated. Because it only ever inspects `duty[0]`, a satisfied duty[0]
+# with a violated duty[1] wrongly read back `Active`/`Performed`/
+# `Fulfilled` on v0.23.1 and earlier. This file was renamed from
+# duty-mode-deny-gates-on-any-sibling-duty-01.ttl and rewritten to
+# dsc:Advise to actually exercise that path; the dsc:Deny reading (already
+# correctly handled via `duties_resolved`) is not separately re-tested
+# here since `duty_gate_violated` never runs under it before
+# `permission_grants[..]` has already settled the outcome.
+
+:testcase a dsc:TestCase ;
+    dct:title "dutyMode=Advise: a permission with TWO sibling odrl:duty entries is gated Inactive when ANY of them is violated, not only the first" ;
+    dct:created "2026-09-17T11:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a .
+
+:asset-doc  a odrl:Asset .
+:ack-log    a odrl:Asset .
+:notify-log a odrl:Asset .
+
+:profile a odrl:Profile ;
+    odrl:action odrl:read, odrl:inform ;
+    dsc:dutyMode dsc:Advise .
+
+# TWO sibling odrl:duty entries on the SAME permission -- duty[0] is
+# resolved by a supplied claim, duty[1] is unconstrained and therefore
+# always outstanding. Under dsc:Advise, `grants()` itself never looks at
+# either duty, so `duty_gate_violated` is the ONLY thing that can gate
+# :perm-read here -- exercising exactly the "ANY duty gates it, not only
+# the first" rule this fixture targets.
+:perm-read a odrl:Permission ;
+    odrl:target :asset-doc ;
+    odrl:action odrl:read ;
+    odrl:duty :duty-ack, :duty-notify .
+
+:duty-ack a odrl:Duty ;
+    odrl:action odrl:inform ;
+    odrl:target :ack-log ;
+    odrl:constraint [
+        a odrl:Constraint ;
+        odrl:leftOperand [ a dsc:ClaimKey ; dsc:key "ackGiven" ] ;
+        odrl:operator odrl:eq ;
+        odrl:rightOperand "true"
+    ] .
+
+:duty-notify a odrl:Duty ;
+    odrl:action odrl:inform ;
+    odrl:target :notify-log .
+    # No odrl:constraint -- always outstanding by design: the SECOND
+    # sibling duty, which must ALSO gate :perm-read even though the first
+    # (:duty-ack) is satisfied and `duty_gate_violated` (pre-fix) only
+    # ever looked at that first one.
+
+:claim-ack a dsc:ClaimAssertion ; dsc:key "ackGiven" ; rdf:value "true" .
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:permission :perm-read .
+
+:request a dsc:Request ;
+    odrl:target :asset-doc ;
+    odrl:action odrl:read ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a ;
+    dsc:claim :claim-ack .
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :asset-doc ] .
+
+# Expected outcome: :perm-read is gated Inactive because :duty-notify
+# (duty[1]) is genuinely violated (in force, unconstrained, never
+# satisfiable from claims), even though :duty-ack (duty[0], the only one
+# report:conditionReport ever links to) is itself Fulfilled, and even
+# though dsc:dutyMode is Advise (which does not gate on duty resolution
+# through `grants()` -- only `duty_gate_violated`'s own hard rule can
+# produce this Inactive here).
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm-read , :rr-a-duty-ack , :rr-a-duty-notify .
+
+:rr-a-perm-read a report:PermissionReport ;
+    report:rule :perm-read ;
+    report:activationState report:Inactive ;        # duty[1] violated gates the WHOLE permission
+    report:attemptState report:Attempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:conditionReport :rr-a-duty-ack ;          # only duty[0] is ever linked via report:conditionReport
+    report:premiseReport :pr-a-action, :pr-a-target .
+
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-duty-ack a report:DutyReport ;
+    report:rule :duty-ack ;
+    report:activationState report:Active ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled .
+
+:rr-a-duty-notify a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
