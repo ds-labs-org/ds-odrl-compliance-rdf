@@ -1,0 +1,136 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/multi-parent-inherit-conflict-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Engine-verified against ds-odrl-engine-rs v0.23.0 via a scratch
+# `engine::evaluate_request_detailed` call over the hand-transcribed wire
+# JSON equivalent of this file's own :request. Exercises
+# `wire::resolve_inherit_from`'s handling of a GENUINE multi-parent chain
+# (df31ca7, "void a policy when odrl:inheritFrom merges differing
+# odrl:conflict values", Information Model section 2.10 rule 4): TWO
+# parents, NEITHER declaring odrl:conflict, feeding one child that DOES.
+# Confirmed live that this is not treated as a divergence -- only one
+# explicit value (the child's own) exists anywhere in the chain, so the
+# merge is not forced void (report:PolicyReport carries no
+# `conflict_forced_invalid`-equivalent triple in this vocabulary, but the
+# engine's own internal flag was confirmed `false` for :policy-child
+# during verification) and the child's declared odrl:perm resolves the
+# now-merged collision normally, exactly as a single-parent chain would.
+
+:testcase a dsc:TestCase ;
+    dct:title "Genuine multi-parent odrl:inheritFrom: two parents leave odrl:conflict unset, only the child declares it -- not a divergence, so the child's own odrl:perm resolves the merged collision normally" ;
+    dct:created "2026-09-17T09:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-parent-permit , :report-parent-prohibit , :report-child .
+
+:asset-x a odrl:Asset .
+
+:profile a odrl:Profile ;
+    odrl:action odrl:print .
+
+# Parent 1: grants, on its own terms, unconditionally. No odrl:conflict.
+:perm-print a odrl:Permission ;
+    odrl:target :asset-x ;
+    odrl:action odrl:print .
+
+:parent-permit a odrl:Set ;
+    odrl:assigner <did:web:provider-a.example> ;
+    odrl:permission :perm-print .
+
+# Parent 2: denies, on its own terms, unconditionally. No odrl:conflict.
+:proh-print a odrl:Prohibition ;
+    odrl:target :asset-x ;
+    odrl:action odrl:print .
+
+:parent-prohibit a odrl:Set ;
+    odrl:assigner <did:web:provider-b.example> ;
+    odrl:prohibition :proh-print .
+
+# Child: no rules of its own -- BOTH the permission and the prohibition
+# above only collide once inheritance merges them here. Two parents,
+# neither casting an odrl:conflict vote; only the child's own odrl:perm
+# does.
+:policy-child a odrl:Agreement ;
+    dsc:inheritsFrom ( :parent-permit :parent-prohibit ) ;
+    odrl:conflict odrl:perm .
+
+:request a dsc:Request ;
+    odrl:target :asset-x ;
+    odrl:action odrl:print ;
+    dsc:profile :profile ;
+    dsc:policy :parent-permit, :parent-prohibit, :policy-child .
+    # No dsc:claim entries: neither rule carries a constraint.
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:print ; odrl:target :asset-x ] .
+
+# Each parent is also independently reported on its own terms -- neither
+# collides by itself, so each is a plain unconditional grant/deny.
+
+:report-parent-permit a report:PolicyReport ;
+    report:policy :parent-permit ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-pp-perm .
+
+:rr-pp-perm a report:PermissionReport ;
+    report:rule :perm-print ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-pp-action, :pr-pp-target .
+
+:pr-pp-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-pp-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:report-parent-prohibit a report:PolicyReport ;
+    report:policy :parent-prohibit ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-pb-proh .
+
+:rr-pb-proh a report:ProhibitionReport ;
+    report:rule :proh-print ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Violated ;
+    report:premiseReport :pr-pb-action, :pr-pb-target .
+
+:pr-pb-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-pb-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+# The child: BOTH rules replicated in, now genuinely colliding --
+# odrl:conflict odrl:perm (the child's own, sole explicit value in the
+# whole chain) lets the inherited permission win.
+
+:report-child a report:PolicyReport ;
+    report:policy :policy-child ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-c-perm , :rr-c-proh .
+
+:rr-c-perm a report:PermissionReport ;
+    report:rule :perm-print ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;    # conflict=perm: this permission wins
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-c-perm-action, :pr-c-perm-target .
+
+:pr-c-perm-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-c-perm-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-c-proh a report:ProhibitionReport ;
+    report:rule :proh-print ;
+    report:activationState report:Inactive ;       # superseded by conflict=perm
+    report:attemptState report:Attempted ;
+    report:performanceState report:Unknown ;        # Inactive PROHIBITION: "no statements can be made"
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-c-proh-action, :pr-c-proh-target .
+
+:pr-c-proh-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-c-proh-target a report:TargetReport ; report:satisfactionState report:Satisfied .

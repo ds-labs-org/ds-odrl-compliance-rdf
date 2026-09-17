@@ -1,0 +1,76 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/custom-policy-kind-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Engine-verified against ds-odrl-engine-rs v0.23.0 via a scratch
+# `engine::evaluate_request_detailed` call over the hand-transcribed wire
+# JSON equivalent of this file's own :request. Confirms dsc:policyKind's
+# own escape-hatch contract: a `policy.kind` naming none of ODRL's seven
+# native subclasses evaluates exactly as an odrl:Set would, and -- unlike
+# `kind == "Agreement"` -- never triggers `agreementAssigneeClaim`
+# scoping, even with an odrl:assignee present and that claim key
+# configured. Confirmed live by configuring agreementAssigneeClaim and
+# observing it stay completely inert for this policy.
+
+:testcase a dsc:TestCase ;
+    dct:title "dsc:policyKind: a policy.kind naming none of ODRL's 7 native subclasses evaluates like odrl:Set, and does not trigger Agreement-only party scoping" ;
+    dct:created "2026-09-17T09:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a .
+
+:asset-feed a odrl:Asset .
+
+# agreementAssigneeClaim is configured but must stay inert here -- :policy-a
+# is not kind=="Agreement".
+:profile a odrl:Profile ;
+    odrl:action odrl:read ;
+    dsc:agreementAssigneeClaim "agreementParty" .
+
+:perm-read a odrl:Permission ;
+    odrl:target :asset-feed ;
+    odrl:action odrl:read .
+
+# `a odrl:Policy` (the base class, not one of the 7 native subclasses),
+# with dsc:policyKind naming the wire's literal, non-native kind string --
+# never asserted alongside odrl:Set/Offer/Agreement/etc. per the
+# vocabulary spec. odrl:assignee is set, and no matching "agreementParty"
+# claim is offered, to make the "stays inert" assertion genuine rather
+# than vacuous.
+:policy-a a odrl:Policy ;
+    dsc:policyKind "DataProcessingArrangement" ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:assignee <did:web:consumer.example> ;
+    odrl:permission :perm-read .
+
+:request a dsc:Request ;
+    odrl:target :asset-feed ;
+    odrl:action odrl:read ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+    # No dsc:claim entries: the permission carries no constraint, and no
+    # "agreementParty" claim exists -- the point being that its absence
+    # doesn't matter here.
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :asset-feed ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm-read .
+
+:rr-a-perm-read a report:PermissionReport ;
+    report:rule :perm-read ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-a-action, :pr-a-target .
+
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .

@@ -1,0 +1,97 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/duty-advise-does-not-gate-permission-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Engine-verified against ds-odrl-engine-rs v0.23.0 via a scratch
+# `engine::evaluate_request_detailed` call over the hand-transcribed wire
+# JSON equivalent of this file's own :request. Note the design this took
+# two attempts to land on: a PER-PERMISSION odrl:duty (as the worked
+# example's :perm-print-dutied uses) is forced report:Inactive at the
+# detailed-report level under EITHER dutyMode -- report:conditionReport's
+# own "cannot be Active while Violated" rule is dutyMode-invariant there
+# -- so it cannot demonstrate dsc:Advise's own distinguishing behavior at
+# all. A POLICY-LEVEL odrl:obligation (below) genuinely does: its
+# dutyMode gating applies to the *sibling* permission's own activation,
+# not to itself, and only under dsc:Deny. Confirmed live: swapping this
+# same request to dsc:Deny denies :perm-print entirely, matching the
+# behaviour already published for :perm-print-dutied in
+# inherited-agreement-duty-chain-01.ttl's own :report-a.
+
+:testcase a dsc:TestCase ;
+    dct:title "dutyMode=Advise: an outstanding POLICY-LEVEL odrl:obligation is reported violated but does not gate a sibling, duty-free permission for a different action" ;
+    dct:created "2026-09-17T09:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a .
+
+:asset-report        a odrl:Asset .
+:notification-log    a odrl:Asset .
+
+:profile a odrl:Profile ;
+    odrl:action odrl:print, odrl:inform ;
+    dsc:dutyMode dsc:Advise .
+
+# Duty-free: no odrl:duty on this permission at all -- its own activation
+# is governed only by the policy-level obligation below, via dutyMode.
+:perm-print a odrl:Permission ;
+    odrl:target :asset-report ;
+    odrl:action odrl:print .
+
+# Policy-level obligation (odrl:obligation, not odrl:duty on a rule):
+# unconstrained, so always outstanding, exactly like the worked example's
+# own :duty-notify.
+:duty-notify a odrl:Duty ;
+    odrl:action odrl:inform ;
+    odrl:target :notification-log .
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:permission :perm-print ;
+    odrl:obligation :duty-notify .
+
+:request a dsc:Request ;
+    odrl:target :asset-report ;
+    odrl:action odrl:print ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+    # No dsc:claim entries: neither the permission nor the obligation
+    # carries a constraint.
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:print ; odrl:target :asset-report ] .
+
+# Expected outcome: the permission grants normally (Active/Performed/
+# Fulfilled) -- dsc:Advise means an unfulfilled duty is reported, not
+# denying. The obligation is reported as an outstanding, violated
+# SIBLING report:ruleReport (the same "always in force, never nested"
+# convention the worked example's own policy-level-duty reporting uses),
+# never linked via report:conditionReport -- that link exists only for a
+# duty attached to one specific permission, and this obligation is
+# policy-level.
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm-print , :rr-a-duty-notify .
+
+:rr-a-perm-print a report:PermissionReport ;
+    report:rule :perm-print ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-a-action, :pr-a-target .
+
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-duty-notify a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+    # No report:attemptState -- outside report:DutyReport's declared
+    # domain (docs/vocabulary-spec.md section 3).

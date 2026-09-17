@@ -108,6 +108,24 @@ odrl:inform a odrl:Action ; odrl:includedIn odrl:use .
     rdf:value "PI", "reviewer" ;
     dct:issued "2026-09-10T09:00:00Z"^^xsd:dateTime .
 
+# bare environment fact — added 2026-09-17 to fix a disclosed fixture gap:
+# :perm-print-clean's own odrl:refinement (odrl:count lteq 2, below) had
+# no supporting claim at all, so it could never be satisfied as originally
+# authored. Engine-verified against ds-odrl-engine-rs v0.23.0 (a scratch
+# `engine::evaluate_request_detailed` call over this file's hand-
+# transcribed wire JSON, with and without this claim): WITHOUT it, the
+# refinement is report:Unsatisfied, which cascades to
+# report:attemptState report:NotAttempted and report:activationState
+# report:Inactive on :rr-a-print-clean below — contradicting this file's
+# own already-published expected outcome. WITH it (value 1, satisfying
+# lteq 2), the engine's actual output matches exactly what was already
+# published below, confirming this file's own outcome always assumed
+# this claim existed.
+:claim-count a dsc:ClaimAssertion ;
+    dsc:key "count" ;
+    rdf:value 1 ;
+    dct:issued "2026-09-10T09:00:00Z"^^xsd:dateTime .
+
 # ---------------------------------------------------------------------------
 # Nested constraint: purpose = AcademicResearch AND
 #   (riskScore <= 20 OR recipient isAnyOf {DataController, ThirdParty}
@@ -210,7 +228,8 @@ odrl:inform a odrl:Action ; odrl:includedIn odrl:use .
     dsc:profile :profile ;
     dsc:policy :policy-a, :policy-b ;
     dsc:claim :claim-identity, :claim-agreement-party, :claim-clearance,
-              :claim-session, :claim-risk, :claim-purpose, :claim-roles .
+              :claim-session, :claim-risk, :claim-purpose, :claim-roles,
+              :claim-count .
 
 # ---------------------------------------------------------------------------
 # Expected outcome
