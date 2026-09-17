@@ -1,0 +1,110 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/conflict-perm-supersedes-prohibition-remedy-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Engine-verified against ds-odrl-engine-rs v0.23.0 via a scratch
+# engine::evaluate_request_detailed call over the hand-transcribed wire
+# JSON equivalent of this file's own :request, confirming every
+# report:-tree expectation below. A SEPARATE, deliberate cross-check
+# `ds-odrl-compliance-rdf`'s own compliance-rdf-runner performs --
+# comparing the coarse wire::Response.duties list against what this
+# expected tree implies it should contain -- is EXPECTED TO FAIL against
+# ds-odrl-engine-rs v0.23.0: `decision::unresolved_remedies` does not
+# consult `odrl:conflict` resolution at all, so :remedy-notify-dpo's duty
+# still shows up in the coarse `Response.duties` list even though it is
+# genuinely superseded (report:Inactive below, exactly as
+# inherited-agreement-duty-chain-01.ttl's own :rr-b-remedy already
+# establishes for the equivalent multi-policy/inherited shape). This file
+# isolates the identical scenario to a SINGLE policy with no inheritance
+# and no second permission, so the coarse-vs-detailed divergence is
+# attributable to exactly one thing. See ds-odrl-engine-rs's own v0.23.1
+# fix.
+
+:testcase a dsc:TestCase ;
+    dct:title "A single, isolated odrl:conflict odrl:perm collision: the winning permission is Active/Fulfilled, and the superseded prohibition's own odrl:remedy is Inactive/NonSet -- and must not be outstanding in the coarse Response.duties list either" ;
+    dct:created "2026-09-17T10:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a .
+
+:asset-file   a odrl:Asset .
+:dpo-register a odrl:Asset .
+
+:profile a odrl:Profile ;
+    odrl:action odrl:transfer, odrl:inform .
+
+# ONE policy, ONE permission and ONE colliding prohibition on the
+# identical action/target, ONE remedy -- no second policy, no
+# inheritance, no second permission, so nothing else could explain a
+# divergence between the detailed report and the coarse duties list.
+:perm-transfer a odrl:Permission ;
+    odrl:target :asset-file ;
+    odrl:action odrl:transfer .
+
+:proh-transfer a odrl:Prohibition ;
+    odrl:target :asset-file ;
+    odrl:action odrl:transfer ;
+    odrl:remedy :remedy-notify-dpo .
+
+:remedy-notify-dpo a odrl:Duty ;
+    odrl:action odrl:inform ;
+    odrl:target :dpo-register .
+    # No odrl:constraint -- unconditionally outstanding IF the
+    # prohibition it hangs off ever genuinely fires (the same convention
+    # every other remedy fixture in this corpus already uses). Here it
+    # must not, because the prohibition it hangs off is superseded.
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:permission :perm-transfer ;
+    odrl:prohibition :proh-transfer ;
+    odrl:conflict odrl:perm .
+
+:request a dsc:Request ;
+    odrl:target :asset-file ;
+    odrl:action odrl:transfer ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+    # No dsc:claim entries: neither rule carries a constraint.
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:transfer ; odrl:target :asset-file ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm-transfer , :rr-a-proh-transfer , :rr-a-remedy .
+
+:rr-a-perm-transfer a report:PermissionReport ;
+    report:rule :perm-transfer ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;    # conflict=perm: this permission wins
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-a-perm-action, :pr-a-perm-target .
+
+:pr-a-perm-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-perm-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-proh-transfer a report:ProhibitionReport ;
+    report:rule :proh-transfer ;
+    report:activationState report:Inactive ;       # superseded by conflict=perm
+    report:attemptState report:Attempted ;          # same action+target as the request
+    report:performanceState report:Unknown ;        # Inactive PROHIBITION: "no statements can be made"
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-proh-action, :pr-a-proh-target .
+
+:pr-a-proh-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-proh-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-remedy a report:DutyReport ;
+    report:rule :remedy-notify-dpo ;
+    report:activationState report:Inactive ;       # a remedy of a superseded prohibition never fires
+    report:performanceState report:Unknown ;        # Inactive DUTY: same "no statements can be made" rule
+    report:deonticState report:NonSet .
+    # No report:attemptState -- outside report:DutyReport's declared
+    # domain (docs/vocabulary-spec.md section 3).
