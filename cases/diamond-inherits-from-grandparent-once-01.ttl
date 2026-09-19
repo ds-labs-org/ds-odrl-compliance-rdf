@@ -1,0 +1,207 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/diamond-inherits-from-grandparent-once-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Engine-verified against ds-odrl-engine-rs's `fable-audit-fixes` branch
+# (d0b14dd) via a scratch `engine::evaluate_request_detailed` call over the
+# hand-transcribed wire JSON equivalent of this file's own :request -- see
+# that engine's own
+# `a_diamond_inherit_from_replicates_a_shared_grandparents_rules_exactly_once`
+# unit test (engine/src/wire.rs) for the identical scenario, engine-side.
+#
+# Targets a real bug in `wire::resolve_inherit_from`: pre-fix, the merge
+# extended a child with each IMMEDIATE parent's own ALREADY-MERGED rules
+# rather than with each DISTINCT ancestor's own raw declared rules, so a
+# grandparent reachable through two parents (a genuine diamond) arrived
+# once PER PATH -- here, twice: two copies of :perm-use and two of
+# :duty-notify in :policy-child's own report:PolicyReport (4 rule reports
+# instead of 2), and :duty-notify listed twice in the coarse
+# Response.duties for policy-child.
+#
+# compliance-rdf-runner's own translate.rs carried the IDENTICAL bug in
+# its own PolicyIds shadow (merged_policy_ids/ancestor_order, fixed in the
+# same PR) -- which is why this fixture's per-rule report: tree comparison
+# alone would NOT have caught the duplication pre-fix: the pre-fix engine
+# and the pre-fix runner shadow duplicate identically, and
+# compliance-rdf-runner's Part 1 check keys actual rule reports by RDF
+# rule id (a HashMap), so the duplicate pair silently collapses back to
+# one entry on both sides. It IS caught, even against the pre-fix engine
+# paired with the pre-fix runner, by the coarse Response.duties
+# cross-check (compliance-rdf-runner's Part 4, which predates this PR
+# entirely): that check compares a raw, SORTED Vec<(policy_id, action)>,
+# not deduplicated by rule id, so the pre-fix engine's literal second
+# :duty-notify entry for policy-child is a length-visible mismatch. This
+# is exactly why this fixture's grandparent carries a policy-level
+# odrl:obligation and not only a permission -- the permission's own
+# duplication is invisible to this corpus's comparison mechanism today (a
+# separate, disclosed gap in the runner, not something this fixture can
+# fix by itself), but the obligation's is not.
+
+:testcase a dsc:TestCase ;
+    dct:title "Genuine diamond dsc:inheritsFrom (grandparent -> {parent-1, parent-2} -> child): the grandparent's permission and obligation reach the child exactly once, not once per path" ;
+    dct:created "2026-09-19T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-grandparent, :report-parent-1, :report-parent-2, :report-child ;
+    dsc:expectedDecision "Allow" .
+
+:asset-1 a odrl:Asset .
+
+# dsc:dutyMode dsc:Advise, deliberately: under dsc:Deny,
+# wire::response_from_scaffolding omits a plain policy-level
+# odrl:obligation from the coarse Response.duties regardless of its
+# outstanding status (see that function's own doc comment), which would
+# hide the very duplication this fixture exists to surface. Advise also
+# keeps decide()'s own Allow independent of the obligation entirely, so
+# :duty-notify being permanently unresolved here is unremarkable (Section
+# 4.5) rather than a second thing under test.
+:profile a odrl:Profile ;
+    odrl:action odrl:use, odrl:notify ;
+    dsc:dutyMode dsc:Advise .
+
+:perm-use a odrl:Permission ;
+    odrl:action odrl:use .
+    # No odrl:target/odrl:constraint -- applies unconditionally to
+    # whatever the request asks about.
+
+:duty-notify a odrl:Duty ;
+    odrl:action odrl:notify .
+    # No odrl:constraint -- always outstanding by design, this corpus's
+    # own established convention for an unconstrained duty.
+
+:policy-grandparent a odrl:Set ;
+    odrl:assigner <did:web:root-provider.example> ;
+    odrl:permission :perm-use ;
+    odrl:obligation :duty-notify .
+
+:policy-parent-1 a odrl:Set ;
+    odrl:assigner <did:web:root-provider.example> ;
+    dsc:inheritsFrom ( :policy-grandparent ) .
+    # Adds no rules of its own -- inheritance only.
+
+:policy-parent-2 a odrl:Set ;
+    odrl:assigner <did:web:root-provider.example> ;
+    dsc:inheritsFrom ( :policy-grandparent ) .
+    # Adds no rules of its own -- inheritance only.
+
+:policy-child a odrl:Agreement ;
+    odrl:assignee <did:web:caller.example> ;
+    dsc:inheritsFrom ( :policy-parent-1 :policy-parent-2 ) .
+    # The genuine diamond: BOTH parents inheritsFrom the SAME grandparent.
+    # Adds no rules of its own -- every rule reachable through
+    # :policy-child is :policy-grandparent's.
+
+:request a dsc:Request ;
+    odrl:target :asset-1 ;
+    odrl:action odrl:use ;
+    dsc:profile :profile ;
+    dsc:policy :policy-grandparent, :policy-parent-1, :policy-parent-2, :policy-child .
+    # Every policy the diamond touches -- this corpus's established
+    # convention that every evaluated policy gets its own
+    # report:PolicyReport, not only :policy-child (whose report is the one
+    # that actually demonstrates the fix).
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:use ; odrl:target :asset-1 ] .
+
+# :policy-grandparent and each of :policy-parent-1/:policy-parent-2 are
+# unremarkable on their own -- single-parent (or no-parent) inheritance
+# already worked correctly before this fix.
+
+:report-grandparent a report:PolicyReport ;
+    report:policy :policy-grandparent ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-g-perm, :rr-g-duty .
+
+:rr-g-perm a report:PermissionReport ;
+    report:rule :perm-use ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-g-action, :pr-g-target .
+
+:pr-g-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-g-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-g-duty a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+
+:report-parent-1 a report:PolicyReport ;
+    report:policy :policy-parent-1 ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-p1-perm, :rr-p1-duty .
+
+:rr-p1-perm a report:PermissionReport ;
+    report:rule :perm-use ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-p1-action, :pr-p1-target .
+
+:pr-p1-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-p1-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-p1-duty a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+
+:report-parent-2 a report:PolicyReport ;
+    report:policy :policy-parent-2 ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-p2-perm, :rr-p2-duty .
+
+:rr-p2-perm a report:PermissionReport ;
+    report:rule :perm-use ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-p2-action, :pr-p2-target .
+
+:pr-p2-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-p2-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-p2-duty a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+
+# :policy-child is the whole point: BOTH parents inherited from the SAME
+# grandparent, so a correct merge still produces exactly ONE
+# PermissionReport and ONE DutyReport here -- not two of each. Pre-fix,
+# this policy's own actual rule_reports had FOUR entries; post-fix,
+# exactly these two.
+
+:report-child a report:PolicyReport ;
+    report:policy :policy-child ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-c-perm, :rr-c-duty .
+
+:rr-c-perm a report:PermissionReport ;
+    report:rule :perm-use ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-c-action, :pr-c-target .
+
+:pr-c-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-c-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-c-duty a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .

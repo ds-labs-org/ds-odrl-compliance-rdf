@@ -14,7 +14,7 @@
     dct:description "The residual terms needed to represent the ds-odrl-engine-rs Section 5.2 wire contract natively in RDF, beyond what ODRL 2.2, FOAF, vCard, schema.org, the W3C Verifiable Credentials Data Model 2.0, W3C DPV, and the FORCE compliance-report vocabulary already provide. Reuses odrl:Profile for the wire contract's own config envelope rather than minting a competing class."@en ;
     vann:preferredNamespacePrefix "dsc" ;
     vann:preferredNamespaceUri "https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#" ;
-    owl:versionInfo "0.2.0" .
+    owl:versionInfo "0.3.0" .
 
 dsc:TestCase a owl:Class ;
     rdfs:comment "One self-contained ODRL compliance test case: a Request under test plus its expected report:PolicyReport outcome(s)." .
@@ -42,6 +42,9 @@ dsc:request a owl:ObjectProperty ; rdfs:domain dsc:TestCase ; rdfs:range dsc:Req
 
 dsc:expectedOutcome a owl:ObjectProperty ; rdfs:domain dsc:TestCase ; rdfs:range report:PolicyReport ;
     rdfs:comment "An expected outcome tree, one per policy under test." .
+
+dsc:expectedDecision a owl:DatatypeProperty ; rdfs:domain dsc:TestCase ; rdfs:range xsd:string ;
+    rdfs:comment "The coarse engine::wire::Response.decision this TestCase's own :request must produce, spelled exactly as engine::wire::WireDecision's own Rust variant name: \"Allow\", \"Deny\", or \"Error\" -- no separate mapping table, so a consumer can string-compare directly. Optional: a TestCase that omits it states no opinion about the coarse decision, only about its dsc:expectedOutcome report: tree(s). A TestCase that states it is asserting something dsc:expectedOutcome alone cannot: the report: vocabulary has no term for the request's own overall Allow/Deny/Error answer." .
 
 dsc:profile a owl:ObjectProperty ; rdfs:domain dsc:Request ; rdfs:range odrl:Profile ;
     rdfs:comment "The engine profile governing this Request, inline or by reference (by-reference: at the referenced document's fixed #profile fragment)." .

@@ -1,0 +1,116 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/duty-mode-deny-consequence-resolves-permission-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Engine-verified against ds-odrl-engine-rs's `fable-audit-fixes` branch
+# (d0b14dd, "duty gate reads outstanding chains; inheritFrom merges each
+# ancestor once") via a scratch `engine::evaluate_request_detailed` call
+# over the hand-transcribed wire JSON equivalent of this file's own
+# :request -- see that engine's own
+# `duty_gate_violated_uses_the_same_consequence_resolved_predicate_grants_uses`
+# unit test (engine/src/decision.rs) for the identical scenario,
+# engine-side. Targets a real bug in `decision::derive_detailed_
+# rule_reports`'s `duty_gate_violated` local: pre-fix it tested
+# `!duty.duty_satisfied(claims)` on the ROOT duty alone, never walking
+# `odrl:consequence` -- so an unconstrained duty whose consequence WAS
+# satisfied by a claim (nothing outstanding on the coarse decide() path,
+# which already resolves the chain correctly) still read the owning
+# permission back Inactive/Unperformed/NonSet in the detailed report,
+# disagreeing with decide()'s own Allow. Run against the pre-fix engine,
+# :rr-a-perm below (expected Active/Performed/Fulfilled) reads
+# Inactive/Unperformed/NonSet instead.
+
+:testcase a dsc:TestCase ;
+    dct:title "dutyMode=Deny: a permission's unconstrained odrl:duty is gated Active once its own odrl:consequence resolves the chain, matching decide()'s coarse Allow" ;
+    dct:created "2026-09-19T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a ;
+    dsc:expectedDecision "Allow" .
+
+:asset-1 a odrl:Asset .
+
+:profile a odrl:Profile ;
+    odrl:action odrl:read, odrl:notify, odrl:compensate ;
+    dsc:dutyMode dsc:Deny .
+
+# :duty-notify has no odrl:constraint -- always outstanding on its own, by
+# this corpus's own established convention. Its odrl:consequence,
+# :duty-compensate, DOES resolve from a supplied claim -- the chain
+# resolves through the consequence, per this engine's own Rule::consequence
+# semantics, and nothing is left outstanding.
+:perm-read a odrl:Permission ;
+    odrl:target :asset-1 ;
+    odrl:action odrl:read ;
+    odrl:duty :duty-notify .
+
+:duty-notify a odrl:Duty ;
+    odrl:action odrl:notify ;
+    odrl:consequence :duty-compensate .
+
+:duty-compensate a odrl:Duty ;
+    odrl:action odrl:compensate ;
+    odrl:constraint [
+        a odrl:Constraint ;
+        odrl:leftOperand [ a dsc:ClaimKey ; dsc:key "compensated" ] ;
+        odrl:operator odrl:eq ;
+        odrl:rightOperand "true"
+    ] .
+
+:claim-compensated a dsc:ClaimAssertion ; dsc:key "compensated" ; rdf:value "true" .
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:permission :perm-read .
+
+:request a dsc:Request ;
+    odrl:target :asset-1 ;
+    odrl:action odrl:read ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a ;
+    dsc:claim :claim-compensated .
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :asset-1 ] .
+
+# Expected outcome: :perm-read is Active -- decide()'s coarse Allow and the
+# detailed report agree, because :duty-notify's own consequence resolves
+# the chain (nothing outstanding). :duty-notify itself (depth 0) never
+# resolves on its own -- Active/Unperformed/Violated, the breach genuinely
+# occurred -- and its consequence :duty-compensate (depth 1) IS satisfied
+# -- Active/Performed/Fulfilled -- reported as a separate, sibling
+# report:ruleReport per this corpus's established duty-to-consequence
+# convention (docs/vocabulary-spec.md section 5).
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm, :rr-a-duty-notify, :rr-a-duty-compensate .
+
+:rr-a-perm a report:PermissionReport ;
+    report:rule :perm-read ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:conditionReport :rr-a-duty-notify ;
+    report:premiseReport :pr-a-action, :pr-a-target .
+
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-duty-notify a report:DutyReport ;
+    report:rule :duty-notify ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+
+:rr-a-duty-compensate a report:DutyReport ;
+    report:rule :duty-compensate ;
+    report:activationState report:Active ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled .

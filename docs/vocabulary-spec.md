@@ -38,10 +38,10 @@ Read it before writing a new test case.
   and `vann:preferredNamespaceUri`, the standard VANN terms consumers use
   to recover the canonical prefix for tooling that doesn't hardcode it.
 
-## 2. The 23 new terms
+## 2. The 24 new terms
 
 Six classes, four named individuals (values of two enumerations), and
-thirteen properties. Definitions below are the same ones carried as
+fourteen properties. Definitions below are the same ones carried as
 `rdfs:comment` in `ns.ttl` — this table exists so a reader doesn't have to
 open the Turtle to get an overview.
 
@@ -65,7 +65,7 @@ open the Turtle to get an overview.
 | `dsc:Open` | An action neither permitted nor prohibited is allowed. |
 | `dsc:Closed` | An action neither permitted nor prohibited is denied. |
 
-### 2.3 Properties (13)
+### 2.3 Properties (14)
 
 | Term | Domain -> Range | Definition |
 |---|---|---|
@@ -75,8 +75,9 @@ open the Turtle to get an overview.
 | `dsc:policy` | `dsc:Request` -> `odrl:Policy` | One member of the Request's policies array. |
 | `dsc:claim` | `dsc:Request` -> `dsc:ClaimAssertion` | One entry of the Request's flat claims map. |
 | `dsc:inheritsFrom` | `odrl:Policy` -> `rdf:List` | Ordered list of parent policies (same Request) whose rules and unset assigner/assignee this policy replicates before evaluation. Wire: `policy.inheritFrom`. Precedence: first-listed non-empty parent wins for assigner/assignee; permission/prohibition/obligation sets are unioned across all ancestors regardless of order. |
-| `dsc:dutyMode` | `odrl:Profile` -> `dsc:DutyMode` | Which of `dsc:Advise`/`dsc:Deny` this profile uses. |
-| `dsc:behaviour` | `odrl:Profile` -> `dsc:Behaviour` | Which of `dsc:Open`/`dsc:Closed` this profile uses. |
+| `dsc:dutyMode` | `odrl:Profile` -> `dsc:DutyMode` | Which of `dsc:Advise`/`dsc:Deny` this profile uses. Omitted means `dsc:Advise` -- see section 4.7. |
+| `dsc:behaviour` | `odrl:Profile` -> `dsc:Behaviour` | Which of `dsc:Open`/`dsc:Closed` this profile uses. Omitted means `dsc:Open` -- see section 4.7. |
+| `dsc:expectedDecision` | `dsc:TestCase` -> `xsd:string` | The coarse `engine::wire::Response.decision` this TestCase's `:request` must produce, spelled exactly as `engine::wire::WireDecision`'s own Rust variant name (`"Allow"`/`"Deny"`/`"Error"`). Optional. |
 | `dsc:partyIdentityClaim` | `odrl:Profile` -> `xsd:string` | Claims-map key checked against every policy's `odrl:assignee`. |
 | `dsc:agreementAssigneeClaim` | `odrl:Profile` -> `xsd:string` | Claims-map key checked against `odrl:assignee`, Agreement-kind policies only. |
 | `dsc:key` | (unrestricted) -> `xsd:string` | The claims-map key a `ClaimAssertion` or `ClaimKey` concerns. Domain deliberately unrestricted — both classes use it. |
@@ -164,7 +165,12 @@ needing to hardcode its own slug more than once.
 A case's root resource (`:testcase`) is a `dsc:TestCase` carrying `dct:title`,
 provenance (`dct:created`, `dct:creator`), exactly one `dsc:request`, and one
 or more `dsc:expectedOutcome` trees (one `report:PolicyReport` per policy
-under test). The `dsc:Request` (`:request`) is kept as a distinct resource
+under test), plus an optional `dsc:expectedDecision` literal stating the
+coarse `Response.decision` the whole request must produce (`"Allow"`/
+`"Deny"`/`"Error"`, exactly `engine::wire::WireDecision`'s own Rust
+variant spelling) -- the one thing a `report:PolicyReport` tree cannot
+itself state, since the `report:` vocabulary has no term for a request's
+overall decision. The `dsc:Request` (`:request`) is kept as a distinct resource
 from the `dsc:TestCase` deliberately: it mirrors the wire contract's own
 `Request` object one-to-one (target, action, profile, policies array,
 claims map), so a tool that only needs to reconstruct the wire JSON can
@@ -233,6 +239,35 @@ A `dsc:profile` value may be:
   rather than having to parse the whole document and scan for whichever
   resource happens to have `rdf:type odrl:Profile` — a fixed, predictable
   anchor instead of a type-scan.
+
+### 4.7 Profile defaults when `dsc:dutyMode`/`dsc:behaviour` are omitted
+
+Both are optional. An `odrl:Profile` node that asserts neither is legal
+and is not an underspecified fixture — it means exactly what
+`ds-odrl-engine-rs`'s own `engine::profile::resolve(&[])` means by "no
+profile loaded said anything about this axis": **`dsc:dutyMode
+dsc:Advise`** (an unfulfilled duty is reported but does not by itself
+deny the permission or policy it governs) and **`dsc:behaviour
+dsc:Open`** (an action neither permitted nor prohibited is allowed). This
+is the engine's own least-strict starting point for each axis, not a
+convention this vocabulary invented — `compliance-rdf-runner`'s own
+translator (`translate.rs::translate_config`) falls back to
+`engine::resolve(&[])` for exactly this reason, deliberately not a
+constant of its own that could drift from the engine's, pinned by that
+crate's own
+`a_profile_that_omits_dsc_duty_mode_gets_the_engines_own_no_profile_default`
+test.
+
+This is not a rarely-exercised corner: as of this writing, 7 of this
+corpus's 10 existing fixtures omit `dsc:dutyMode`, 7 omit
+`dsc:behaviour` (5 omit both), relying on these defaults implicitly. A
+new test case is free to state either explicitly — most of the
+vocabulary examples elsewhere in this document do, when the fixture is
+specifically about that axis — or to omit it when the omission itself is
+the point being tested (`open-behaviour-default-allow-01.ttl`, an
+empty-`permissions` `Offer` that must still `Allow`, is exactly this for
+`dsc:behaviour`). Omission is never a fixture the runner should treat as
+incomplete.
 
 ## 5. The worked example
 
