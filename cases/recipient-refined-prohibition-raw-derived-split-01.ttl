@@ -1,0 +1,366 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/recipient-refined-prohibition-raw-derived-split-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Derived, and anonymized, from a real-world EDC-connector ODRL policy (a
+# genuine third-party API terms-of-use document) reviewed in this project's
+# chat session. Every real company/domain/project/contact name has been
+# replaced or omitted; only the STRUCTURAL pattern is carried over: raw data
+# may be retrieved but never displayed, only a conceptually separate
+# DERIVED asset (an aggregate/report) may be shown or distributed, a
+# distribution prohibition on the raw asset is gated by a `recipient neq
+# <authorized consumer>` action refinement, each prohibition carries its
+# own `odrl:remedy` (delete), and one obligation is time-bound
+# (`elapsedTime lteq PT24H`) while another is an always-outstanding,
+# unconstrained duty. Not carried over from the source policy: the
+# aggregate/derive/print action group is represented by one action
+# (`odrl:derive`) rather than all three, the display/present/distribute/
+# archive group on the derived asset by one action (`odrl:distribute`)
+# rather than all four, the second (archive/index) and third
+# (sell/transfer/give/grantUse) raw-asset prohibitions, and the
+# reviewPolicy/acceptTracking obligations -- all of them would exercise the
+# same shapes already covered elsewhere in this corpus (an unconstrained,
+# always-outstanding duty; a plain unrefined prohibition with a remedy)
+# without demonstrating anything new, so this fixture keeps to the subset
+# that is actually distinctive: the raw-vs-derived action split, the
+# refinement-gated recipient check, and the time-bound/unconstrained duty
+# contrast.
+#
+# Engine-verified against ds-odrl-engine-rs at commit 8609ed3 (one commit
+# past tag v0.23.3) via a scratch `engine::evaluate_request_detailed` call
+# over the hand-transcribed wire JSON equivalent of this file's own
+# :request (ds-odrl-engine-rs-work/engine/examples/scratch_dsc_verify.rs,
+# untracked, not committed). Confirmed live, exactly as published below:
+# the two permissions whose own action doesn't match this request
+# (read, derive) and the one whose target doesn't (distribute on the
+# DERIVED asset, while this request targets the raw one) are all
+# NotAttempted/Inactive; the plain display prohibition doesn't match this
+# request's action either (NotAttempted/Inactive), so its own remedy never
+# fires (Inactive/Unknown/NonSet); the refined distribute prohibition DOES
+# fire (Active/Attempted/Performed/Violated, its own
+# `report:ConstraintReport`-equivalent refinement premise Satisfied because
+# claimed recipient "party-outside" != :party-consumer), and its remedy
+# fires with it (Active/Unperformed/Violated); the unconstrained attribute
+# obligation is always outstanding (Active/Unperformed/Violated) while the
+# time-bound delete obligation is satisfied by the supplied elapsedTime
+# claim ("PT10H" <= "PT24H": Active/Performed/Fulfilled); and the overall
+# `Response.decision` is "Deny" (the firing prohibition, with no colliding
+# permission anywhere in the policy for this same action+target, so
+# `odrl:conflict` is never even reached).
+
+:testcase a dsc:TestCase ;
+    dct:title "A real-world-derived policy: raw data may be read/derived but never displayed; only the derived asset may be distributed; distributing the RAW asset is prohibited except to the one authorized recipient (an action refinement), each prohibition carries its own remedy, and an unconstrained attribution duty contrasts with a time-bound deletion duty" ;
+    dct:created "2026-09-24T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a ;
+    dsc:expectedDecision "Deny" .
+
+# ---------------------------------------------------------------------------
+# Assets, parties
+# ---------------------------------------------------------------------------
+
+:asset-raw a odrl:Asset .
+# The raw API data: may be read and transformed, but never shown or
+# supplied onward except back to its own authorized consumer.
+
+:asset-derived-report a odrl:Asset .
+# A conceptually SEPARATE asset produced by transforming :asset-raw (e.g.
+# an aggregate or a report) -- may be displayed/distributed freely, since
+# what is shown is the outcome of the transformation, never the raw values
+# it was built from.
+
+:party-consumer a odrl:Party .
+# The one party authorized to receive the raw asset -- also this policy's
+# own odrl:assignee, and the rightOperand this file's refinement checks
+# the request's own "recipient" claim against.
+
+:party-outside a odrl:Party .
+# A DIFFERENT party -- used only as this request's own "recipient" claim
+# value, to demonstrate the refinement actually firing.
+
+# ---------------------------------------------------------------------------
+# Profile -- every action any rule below names must be declared here
+# (ds-odrl-engine-rs's own `first_unrecognized_action` check), or the whole
+# request errors rather than denies.
+# ---------------------------------------------------------------------------
+
+:profile a odrl:Profile ;
+    odrl:action odrl:read, odrl:derive, odrl:distribute, odrl:display,
+                odrl:delete, odrl:attribute .
+    # No dsc:dutyMode/dsc:behaviour -- the engine's own no-profile defaults
+    # (Advise/Open) are not load-bearing here: no permission carries a
+    # gating odrl:duty, and every rule under test is explicit about its own
+    # action/target, so neither axis changes this file's own outcome.
+
+# ---------------------------------------------------------------------------
+# Permissions -- the raw-vs-derived split. Two permissions on the raw
+# asset (read it, transform it into the derived report); one permission on
+# the DERIVED asset alone for the very action (distribute) this request
+# attempts on the RAW asset -- inapplicable here only because the target
+# differs, which is exactly the split this fixture demonstrates.
+# ---------------------------------------------------------------------------
+
+:perm-read-raw a odrl:Permission ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:read .
+    # Retrieving the raw values via the API -- permitted outright.
+
+:perm-derive a odrl:Permission ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:derive .
+    # Stands in for the source policy's aggregate/derive/print group:
+    # transforming the raw asset into :asset-derived-report.
+
+:perm-distribute-derived a odrl:Permission ;
+    odrl:target :asset-derived-report ;
+    odrl:action odrl:distribute .
+    # Stands in for display/present/distribute/archive on the DERIVED
+    # asset only -- deliberately unconstrained, to contrast with the
+    # refined prohibition below that covers the SAME action name
+    # (odrl:distribute) but is scoped to the RAW asset instead.
+
+# ---------------------------------------------------------------------------
+# Prohibitions -- both on the raw asset, both remedied by deletion.
+# ---------------------------------------------------------------------------
+
+:proh-display-raw a odrl:Prohibition ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:display ;
+    odrl:remedy :remedy-delete-display .
+    # Showing the raw values on screen, in any static or transient
+    # rendition, is never permitted -- only the derived report may be
+    # shown (:perm-distribute-derived's sibling permissions, not exercised
+    # by this file). Not the action this request attempts, so this rule
+    # itself stays NotAttempted/Inactive here -- present to show the
+    # structural contrast with :perm-distribute-derived above, not to fire.
+
+:remedy-delete-display a odrl:Duty ;
+    odrl:action odrl:delete ;
+    odrl:target :asset-raw .
+
+:proh-distribute-raw-refined a odrl:Prohibition ;
+    odrl:target :asset-raw ;
+    odrl:action [
+        rdf:value odrl:distribute ;
+        odrl:refinement [
+            a odrl:Constraint ;
+            odrl:leftOperand odrl:recipient ;
+            odrl:operator odrl:neq ;
+            odrl:rightOperand :party-consumer
+        ]
+    ] ;
+    odrl:remedy :remedy-delete-distribute .
+    # Supplying the raw asset to any recipient OTHER than the one
+    # authorized consumer is prohibited -- the refinement is what makes
+    # this conditional rather than a blanket ban: distributing it BACK to
+    # :party-consumer itself would not trigger this rule at all. THIS is
+    # the rule this request actually attempts and violates.
+
+:remedy-delete-distribute a odrl:Duty ;
+    odrl:action odrl:delete ;
+    odrl:target :asset-raw .
+
+# ---------------------------------------------------------------------------
+# Obligations -- policy-level, always "in force" regardless of the
+# requested action (docs/vocabulary-spec.md section 5 / the worked
+# example's own duty-notify convention) -- the time-bound/unconstrained
+# contrast this fixture is partly about.
+# ---------------------------------------------------------------------------
+
+:duty-attribute a odrl:Duty ;
+    odrl:action odrl:attribute ;
+    odrl:attributedParty :party-consumer .
+    # No odrl:constraint -- like every other unconstrained duty in this
+    # corpus, this is NOT vacuously satisfied: duty_satisfied requires at
+    # least one constraint, so this duty is always outstanding, by design.
+
+:duty-delete-window a odrl:Duty ;
+    odrl:action odrl:delete ;
+    odrl:target :asset-raw ;
+    odrl:constraint [
+        a odrl:Constraint ;
+        odrl:leftOperand odrl:elapsedTime ;
+        odrl:operator odrl:lteq ;
+        odrl:rightOperand "PT24H"^^xsd:duration
+    ] .
+    # Retrieved raw data must be deleted within 24 hours of retrieval -- a
+    # cache-retention limit, not a requirement to destroy the (separate)
+    # derived report. Genuinely satisfiable, and satisfied here, unlike
+    # :duty-attribute above: the contrast this fixture demonstrates.
+
+# ---------------------------------------------------------------------------
+# Policy
+# ---------------------------------------------------------------------------
+
+:policy-a a odrl:Offer ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:assignee :party-consumer ;
+    odrl:conflict odrl:prohibit ;
+    odrl:permission :perm-read-raw, :perm-derive, :perm-distribute-derived ;
+    odrl:prohibition :proh-display-raw, :proh-distribute-raw-refined ;
+    odrl:obligation :duty-attribute, :duty-delete-window .
+    # odrl:conflict odrl:prohibit mirrors the source policy's own
+    # "conflict": "prohibit" but is NOT load-bearing in this fixture: no
+    # permission anywhere in this policy grants odrl:distribute on
+    # :asset-raw, so the two rules never genuinely collide and
+    # odrl:conflict is never consulted (confirmed live -- see the
+    # engine-verification note above).
+
+# ---------------------------------------------------------------------------
+# Request -- attempts odrl:distribute on the RAW asset, to a recipient
+# ("party-outside") who is NOT the authorized consumer.
+# ---------------------------------------------------------------------------
+
+:claim-recipient a dsc:ClaimAssertion ;
+    dsc:key "recipient" ;
+    rdf:value :party-outside .
+    # Bare environment fact, resolved via odrl:recipient's own native
+    # local-name resolution rule (section 4.5) -- its value happens to be
+    # a resource (the actual recipient of THIS request), stringified by
+    # IRI per the comparison convention, not the request's identity claim.
+
+:claim-elapsed a dsc:ClaimAssertion ;
+    dsc:key "elapsedTime" ;
+    rdf:value "PT10H"^^xsd:duration .
+    # Bare environment fact, resolved via odrl:elapsedTime's own native
+    # local-name resolution rule -- 10 hours, within the 24-hour window
+    # :duty-delete-window's own constraint checks.
+
+:request a dsc:Request ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:distribute ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a ;
+    dsc:claim :claim-recipient, :claim-elapsed .
+
+# ---------------------------------------------------------------------------
+# Expected outcome
+# ---------------------------------------------------------------------------
+
+:the-ask a odrl:Request ;
+    odrl:prohibition [ a odrl:Prohibition ; odrl:action odrl:distribute ; odrl:target :asset-raw ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm-read , :rr-a-perm-derive , :rr-a-perm-distribute-derived ,
+                       :rr-a-proh-display , :rr-a-remedy-display ,
+                       :rr-a-proh-distribute-refined , :rr-a-remedy-distribute ,
+                       :rr-a-duty-attribute , :rr-a-duty-delete-window .
+
+# --- raw-asset permissions: neither's own action is the one requested ---
+
+:rr-a-perm-read a report:PermissionReport ;
+    report:rule :perm-read-raw ;
+    report:activationState report:Inactive ;
+    report:attemptState report:NotAttempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-read-target, :pr-a-read-action .
+
+:pr-a-read-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-read-action a report:ActionReport ; report:satisfactionState report:Unsatisfied .
+
+:rr-a-perm-derive a report:PermissionReport ;
+    report:rule :perm-derive ;
+    report:activationState report:Inactive ;
+    report:attemptState report:NotAttempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-derive-target, :pr-a-derive-action .
+
+:pr-a-derive-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-derive-action a report:ActionReport ; report:satisfactionState report:Unsatisfied .
+
+# --- derived-asset permission: SAME action (distribute) as the request,
+# but a DIFFERENT target -- the raw-vs-derived split, made concrete ---
+
+:rr-a-perm-distribute-derived a report:PermissionReport ;
+    report:rule :perm-distribute-derived ;
+    report:activationState report:Inactive ;
+    report:attemptState report:NotAttempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-dist-derived-target, :pr-a-dist-derived-action .
+
+:pr-a-dist-derived-target a report:TargetReport ; report:satisfactionState report:Unsatisfied .
+:pr-a-dist-derived-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+
+# --- plain display prohibition: not the requested action, so it never
+# fires here, and its own remedy therefore never fires either ---
+
+:rr-a-proh-display a report:ProhibitionReport ;
+    report:rule :proh-display-raw ;
+    report:activationState report:Inactive ;
+    report:attemptState report:NotAttempted ;
+    report:performanceState report:Unknown ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-display-target, :pr-a-display-action .
+
+:pr-a-display-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-display-action a report:ActionReport ; report:satisfactionState report:Unsatisfied .
+
+:rr-a-remedy-display a report:DutyReport ;
+    report:rule :remedy-delete-display ;
+    report:activationState report:Inactive ;
+    report:performanceState report:Unknown ;
+    report:deonticState report:NonSet .
+    # No report:attemptState -- outside report:DutyReport's declared domain.
+
+# --- the refined distribute prohibition: genuinely fires. The action
+# premise reports Satisfied because the refinement itself is Satisfied
+# (claimed recipient "party-outside" != :party-consumer) -- this corpus's
+# established convention folds a satisfied action refinement into the
+# SAME report:ActionReport as ordinary action coverage (see
+# inherited-agreement-duty-chain-01.ttl's :perm-print-clean), not a
+# separate premise node. No genuinely colliding permission exists
+# anywhere in this policy for odrl:distribute+:asset-raw, so
+# odrl:conflict is never reached and this prohibition is simply Active. ---
+
+:rr-a-proh-distribute-refined a report:ProhibitionReport ;
+    report:rule :proh-distribute-raw-refined ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Violated ;
+    report:premiseReport :pr-a-dist-refined-target, :pr-a-dist-refined-action .
+
+:pr-a-dist-refined-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-dist-refined-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-remedy-distribute a report:DutyReport ;
+    report:rule :remedy-delete-distribute ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+    # The one remedy that actually fires in this fixture: the prohibition
+    # it belongs to is genuinely Active/Violated, and this remedy duty
+    # carries no odrl:constraint of its own, so it is unperformed/violated
+    # for the same reason :duty-attribute below always is.
+
+# --- policy-level obligations: always in force, independent of the
+# requested action -- the time-bound/unconstrained contrast ---
+
+:rr-a-duty-attribute a report:DutyReport ;
+    report:rule :duty-attribute ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
+    # Unconstrained: never satisfiable, always outstanding, by design.
+
+:rr-a-duty-delete-window a report:DutyReport ;
+    report:rule :duty-delete-window ;
+    report:activationState report:Active ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-a-delete-window-constraint .
+
+:pr-a-delete-window-constraint a report:ConstraintReport ; report:satisfactionState report:Satisfied .
+    # elapsedTime "PT10H" <= rightOperand "PT24H" -- genuinely satisfiable,
+    # and satisfied by this request's own claim, unlike :duty-attribute.
