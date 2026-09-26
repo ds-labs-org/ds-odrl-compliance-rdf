@@ -1,6 +1,6 @@
 # dsc: vocabulary specification
 
-**Author:** Claude Sonnet 5 (Anthropic), on behalf of shared-claude@unxwares.com
+**Author:** Claude Sonnet 5 (Anthropic), on behalf of Nicolas Karageuzian
 **Document type:** vocabulary specification
 **AI-assisted authorship note:** this document was drafted end-to-end by
 an AI coding assistant (Claude Sonnet 5) against a vocabulary design that
