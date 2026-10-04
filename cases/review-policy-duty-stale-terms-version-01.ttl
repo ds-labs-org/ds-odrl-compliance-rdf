@@ -1,0 +1,97 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/review-policy-duty-stale-terms-version-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Part of the raw/derived API-terms suite: sibling fixtures of
+# recipient-refined-prohibition-raw-derived-split-01.ttl, each isolating ONE
+# mechanic of the same anonymized real-world API terms-of-use policy (raw
+# API data may be retrieved and processed but never shown or supplied
+# as-is; only a separate derived asset may be). No real party, domain or
+# project name is carried over -- only the policy's mechanics.
+
+:testcase a dsc:TestCase ;
+    dct:title "reviewPolicy as a permission duty with a version-pinned acceptance constraint, dutyMode Deny: the caller accepted an OLDER terms version, so the gate stays shut until the current version is accepted" ;
+    dct:created "2026-10-04T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a ;
+    dsc:expectedDecision "Deny" .
+
+:asset-raw a odrl:Asset .
+:terms-v1-1 a odrl:Asset .
+# The full terms, at a stable and VERSIONED address.
+
+:profile a odrl:Profile ;
+    odrl:action odrl:read, odrl:reviewPolicy ;
+    dsc:dutyMode dsc:Deny .
+
+# The gate the source policy intends, made checkable: reviewPolicy moves
+# from a policy-level obligation to a duty on the permission it gates, and
+# it carries a constraint the host can feed: which terms version the caller
+# accepted. dsc:Deny makes it a pre-condition of the permission.
+:perm-read-raw a odrl:Permission ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:read ;
+    odrl:duty :duty-review .
+
+:duty-review a odrl:Duty ;
+    odrl:action odrl:reviewPolicy ;
+    odrl:target :terms-v1-1 ;
+    odrl:constraint [
+        a odrl:Constraint ;
+        odrl:leftOperand [ a dsc:ClaimKey ; dsc:key "acceptedTerms" ] ;
+        odrl:operator odrl:eq ;
+        odrl:rightOperand <https://provider.example/terms/v1.1>
+    ] .
+
+:policy-a a odrl:Offer ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:conflict odrl:prohibit ;
+    odrl:permission :perm-read-raw .
+
+:claim-accepted a dsc:ClaimAssertion ;
+    dsc:key "acceptedTerms" ;
+    rdf:value <https://provider.example/terms/v1.0> .
+    # Which terms version the caller accepted -- in practice an
+    # acceptance record or credential, here a bare fact.
+
+:request a dsc:Request ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:read ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a ;
+    dsc:claim :claim-accepted .
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :asset-raw ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm, :rr-a-duty-review .
+
+# Under dsc:Deny, the permission's own duty is outstanding, so the permission is reported
+# Inactive: attempted, but not in force.
+:rr-a-perm a report:PermissionReport ;
+    report:rule :perm-read-raw ;
+    report:activationState report:Inactive ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:conditionReport :rr-a-duty-review ;
+    report:premiseReport :pr-a-target, :pr-a-action .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-duty-review a report:DutyReport ;
+    report:rule :duty-review ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated ;
+    report:premiseReport :pr-a-duty-constraint .
+:pr-a-duty-constraint a report:ConstraintReport ; report:satisfactionState report:Unsatisfied .

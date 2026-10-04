@@ -1,0 +1,83 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/review-policy-obligation-deny-mode-never-opens-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Part of the raw/derived API-terms suite: sibling fixtures of
+# recipient-refined-prohibition-raw-derived-split-01.ttl, each isolating ONE
+# mechanic of the same anonymized real-world API terms-of-use policy (raw
+# API data may be retrieved and processed but never shown or supplied
+# as-is; only a separate derived asset may be). No real party, domain or
+# project name is carried over -- only the policy's mechanics.
+
+:testcase a dsc:TestCase ;
+    dct:title "reviewPolicy written as an unconstrained policy-level obligation, dutyMode Deny: it can never be fulfilled, so the gate never opens and every request is denied" ;
+    dct:created "2026-10-04T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a ;
+    dsc:expectedDecision "Deny" .
+
+:asset-raw a odrl:Asset .
+:terms a odrl:Asset .
+# The full prose terms and conditions. In the source policy this target is a
+# placeholder string, not yet a resolvable document.
+
+:profile a odrl:Profile ;
+    odrl:action odrl:read, odrl:reviewPolicy ;
+    dsc:dutyMode dsc:Deny .
+
+:perm-read-raw a odrl:Permission ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:read .
+
+# Exactly as the source policy writes it: a POLICY-LEVEL obligation with no
+# constraint. The source's authors call it "the actual enforcement point":
+# the consumer must accept the terms before the supply is activated. Nothing
+# in it can be checked, so it can never be fulfilled (an unconstrained duty
+# is never vacuously satisfied in this corpus).
+:duty-review a odrl:Duty ;
+    odrl:action odrl:reviewPolicy ;
+    odrl:target :terms .
+
+:policy-a a odrl:Offer ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:conflict odrl:prohibit ;
+    odrl:permission :perm-read-raw ;
+    odrl:obligation :duty-review .
+
+:request a dsc:Request ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:read ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :asset-raw ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm, :rr-a-duty-review .
+
+# Under dsc:Deny, a policy-level obligation is outstanding, so the permission is reported
+# Inactive: attempted, but not in force.
+:rr-a-perm a report:PermissionReport ;
+    report:rule :perm-read-raw ;
+    report:activationState report:Inactive ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-target, :pr-a-action .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-duty-review a report:DutyReport ;
+    report:rule :duty-review ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .

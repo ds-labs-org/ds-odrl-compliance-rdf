@@ -1,0 +1,120 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/recipient-refined-prohibition-authorized-recipient-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Part of the raw/derived API-terms suite: sibling fixtures of
+# recipient-refined-prohibition-raw-derived-split-01.ttl, each isolating ONE
+# mechanic of the same anonymized real-world API terms-of-use policy (raw
+# API data may be retrieved and processed but never shown or supplied
+# as-is; only a separate derived asset may be). No real party, domain or
+# project name is carried over -- only the policy's mechanics.
+
+:testcase a dsc:TestCase ;
+    dct:title "Refined prohibition, authorized recipient: the refinement keeps the prohibition inactive, yet distributing the raw asset to the authorized consumer is still DENIED, because no permission grants it and a non-empty permissions list denies whatever it does not grant, even under Open behaviour" ;
+    dct:created "2026-10-04T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a ;
+    dsc:expectedDecision "Deny" .
+
+:asset-raw a odrl:Asset .
+:asset-derived-report a odrl:Asset .
+:party-consumer a odrl:Party .
+# The one authorized recipient of the raw asset.
+
+:profile a odrl:Profile ;
+    odrl:action odrl:distribute, odrl:delete ;
+    dsc:behaviour dsc:Open .
+
+:perm-distribute-derived a odrl:Permission ;
+    odrl:target :asset-derived-report ;
+    odrl:action odrl:distribute .
+
+# The source policy expresses "supply the raw data to nobody but the
+# authorized consumer" ONLY as this refined prohibition; nothing PERMITS
+# distributing the raw asset to that consumer. The refinement correctly
+# keeps the prohibition from firing, but the request is still denied: a
+# policy with a non-empty permissions list denies every action it does not
+# grant, under dsc:Open as under dsc:Closed (the vacuous Open exception
+# covers an EMPTY permissions list only; see
+# open-behaviour-default-allow-01.ttl). dsc:Open is set here on purpose, to
+# show that it does not rescue the request. A policy author who wants the
+# authorized consumer to receive the raw data must add an explicit
+# permission for it.
+:proh-distribute-raw-refined a odrl:Prohibition ;
+    odrl:target :asset-raw ;
+    odrl:action [
+        rdf:value odrl:distribute ;
+        odrl:refinement [
+            a odrl:Constraint ;
+            odrl:leftOperand odrl:recipient ;
+            odrl:operator odrl:neq ;
+            odrl:rightOperand :party-consumer
+        ]
+    ] ;
+    odrl:remedy :remedy-delete .
+
+:remedy-delete a odrl:Duty ;
+    odrl:action odrl:delete ;
+    odrl:target :asset-raw .
+
+:policy-a a odrl:Offer ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:assignee :party-consumer ;
+    odrl:conflict odrl:prohibit ;
+    odrl:permission :perm-distribute-derived ;
+    odrl:prohibition :proh-distribute-raw-refined .
+
+:claim-recipient a dsc:ClaimAssertion ;
+    dsc:key "recipient" ;
+    rdf:value :party-consumer .
+    # The recipient IS the authorized consumer, so the refinement
+    # (recipient neq :party-consumer) is unsatisfied.
+
+:request a dsc:Request ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:distribute ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a ;
+    dsc:claim :claim-recipient .
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:distribute ; odrl:target :asset-raw ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm, :rr-a-proh, :rr-a-remedy .
+
+:rr-a-perm a report:PermissionReport ;
+    report:rule :perm-distribute-derived ;
+    report:activationState report:Inactive ;
+    report:attemptState report:NotAttempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-perm-target, :pr-a-perm-action .
+:pr-a-perm-target a report:TargetReport ; report:satisfactionState report:Unsatisfied .
+:pr-a-perm-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+
+# The unsatisfied refinement is folded into the ActionReport (the corpus
+# convention, see recipient-refined-prohibition-raw-derived-split-01.ttl).
+:rr-a-proh a report:ProhibitionReport ;
+    report:rule :proh-distribute-raw-refined ;
+    report:activationState report:Inactive ;
+    report:attemptState report:NotAttempted ;
+    report:performanceState report:Unknown ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-proh-target, :pr-a-proh-action .
+:pr-a-proh-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-proh-action a report:ActionReport ; report:satisfactionState report:Unsatisfied .
+
+:rr-a-remedy a report:DutyReport ;
+    report:rule :remedy-delete ;
+    report:activationState report:Inactive ;
+    report:performanceState report:Unknown ;
+    report:deonticState report:NonSet .
