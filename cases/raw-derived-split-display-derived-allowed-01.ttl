@@ -1,0 +1,97 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/raw-derived-split-display-derived-allowed-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Part of the raw/derived API-terms suite: sibling fixtures of
+# recipient-refined-prohibition-raw-derived-split-01.ttl, each isolating ONE
+# mechanic of the same anonymized real-world API terms-of-use policy (raw
+# API data may be retrieved and processed but never shown or supplied
+# as-is; only a separate derived asset may be). No real party, domain or
+# project name is carried over -- only the policy's mechanics.
+
+:testcase a dsc:TestCase ;
+    dct:title "Raw/derived split: displaying the DERIVED asset is permitted; the raw-asset display prohibition and its remedy stay inactive" ;
+    dct:created "2026-10-04T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a ;
+    dsc:expectedDecision "Allow" .
+
+:asset-raw a odrl:Asset .
+# The raw API data.
+:asset-derived-report a odrl:Asset .
+# A separate asset built from :asset-raw (an aggregate, a report, a dashboard).
+
+:profile a odrl:Profile ;
+    odrl:action odrl:display, odrl:delete .
+
+# The same action name on two targets, with opposite deontic force: that
+# per-rule target IS the raw/derived split. The source policy also links the
+# two assets with an odrl:output on its derive/aggregate permission; no rule
+# here relies on it, because nothing in a single access request can observe
+# that a displayed asset was actually produced from the raw one.
+:perm-display-derived a odrl:Permission ;
+    odrl:target :asset-derived-report ;
+    odrl:action odrl:display .
+
+:proh-display-raw a odrl:Prohibition ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:display ;
+    odrl:remedy :remedy-delete .
+
+:remedy-delete a odrl:Duty ;
+    odrl:action odrl:delete ;
+    odrl:target :asset-raw .
+
+:policy-a a odrl:Offer ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:conflict odrl:prohibit ;
+    odrl:permission :perm-display-derived ;
+    odrl:prohibition :proh-display-raw .
+
+:request a dsc:Request ;
+    odrl:target :asset-derived-report ;
+    odrl:action odrl:display ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:display ; odrl:target :asset-derived-report ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm, :rr-a-proh, :rr-a-remedy .
+
+:rr-a-perm a report:PermissionReport ;
+    report:rule :perm-display-derived ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-a-perm-target, :pr-a-perm-action .
+:pr-a-perm-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-perm-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+
+# Same action, wrong target: the raw-asset prohibition never fires, so
+# odrl:conflict odrl:prohibit is never consulted and the remedy stays inactive.
+:rr-a-proh a report:ProhibitionReport ;
+    report:rule :proh-display-raw ;
+    report:activationState report:Inactive ;
+    report:attemptState report:NotAttempted ;
+    report:performanceState report:Unknown ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-proh-target, :pr-a-proh-action .
+:pr-a-proh-target a report:TargetReport ; report:satisfactionState report:Unsatisfied .
+:pr-a-proh-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+
+:rr-a-remedy a report:DutyReport ;
+    report:rule :remedy-delete ;
+    report:activationState report:Inactive ;
+    report:performanceState report:Unknown ;
+    report:deonticState report:NonSet .

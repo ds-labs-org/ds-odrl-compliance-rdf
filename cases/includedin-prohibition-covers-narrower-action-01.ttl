@@ -1,0 +1,76 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/includedin-prohibition-covers-narrower-action-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Part of the raw/derived API-terms suite: sibling fixtures of
+# recipient-refined-prohibition-raw-derived-split-01.ttl, each isolating ONE
+# mechanic of the same anonymized real-world API terms-of-use policy (raw
+# API data may be retrieved and processed but never shown or supplied
+# as-is; only a separate derived asset may be). No real party, domain or
+# project name is carried over -- only the policy's mechanics.
+
+:testcase a dsc:TestCase ;
+    dct:title "odrl:includedIn: a prohibition on odrl:reproduce also denies the narrower odrl:extract, so prohibiting both (as the source policy does) is redundant, not contradictory" ;
+    dct:created "2026-10-04T00:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedOutcome :report-a ;
+    dsc:expectedDecision "Deny" .
+
+:asset-raw a odrl:Asset .
+
+# ODRL 2.2's own vocabulary declares extract as a kind of reproduce.
+odrl:extract a odrl:Action ; odrl:includedIn odrl:reproduce .
+
+:profile a odrl:Profile ;
+    odrl:action odrl:reproduce, odrl:extract, odrl:delete .
+
+:proh-reproduce-raw a odrl:Prohibition ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:reproduce ;
+    odrl:remedy :remedy-delete .
+
+:remedy-delete a odrl:Duty ;
+    odrl:action odrl:delete ;
+    odrl:target :asset-raw .
+
+:policy-a a odrl:Offer ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:conflict odrl:prohibit ;
+    odrl:prohibition :proh-reproduce-raw .
+
+:request a dsc:Request ;
+    odrl:target :asset-raw ;
+    odrl:action odrl:extract ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+
+:the-ask a odrl:Request ;
+    odrl:prohibition [ a odrl:Prohibition ; odrl:action odrl:extract ; odrl:target :asset-raw ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-proh, :rr-a-remedy .
+
+:rr-a-proh a report:ProhibitionReport ;
+    report:rule :proh-reproduce-raw ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Violated ;
+    report:premiseReport :pr-a-target, :pr-a-action .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+    # Satisfied through the includedIn chain extract -> reproduce.
+
+:rr-a-remedy a report:DutyReport ;
+    report:rule :remedy-delete ;
+    report:activationState report:Active ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:Violated .
