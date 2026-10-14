@@ -1,0 +1,83 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/and-sequence-one-factor-false-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Fills a gap the ds-prose-rs policy catalog found: no case used
+# odrl:andSequence, which the Dataspace Protocol's own examples do. ODRL
+# IM 2.2 section 2.5.2: andSequence holds when all of its constraints are
+# satisfied in the order given. A request carries one set of claims, not a
+# history, so the order is not observable here and andSequence evaluates
+# like odrl:and. Engine-verified against ds-odrl-engine-rs's
+# compliance-rdf-runner (Constraint::and_sequence, which reuses and's
+# all-of evaluation); its sibling and-sequence-all-factors-in-order-01 is the
+# same policy with both claims true.
+
+:testcase a dsc:TestCase ;
+    dct:title "odrl:andSequence: one of two access-factor claims is false, so the sequence fails, the permission does not grant, and the closed profile denies" ;
+    dct:created "2026-10-14T23:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedDecision "Deny" ;
+    dsc:expectedOutcome :report-a .
+
+:asset-ledger a odrl:Asset .
+
+:profile a odrl:Profile ;
+    odrl:action odrl:read ;
+    dsc:behaviour dsc:Closed .
+
+:constraint-sequence a odrl:LogicalConstraint ;
+    odrl:andSequence (
+        [ a odrl:Constraint ;
+          odrl:leftOperand [ a dsc:ClaimKey ; dsc:key "contractSigned" ] ;
+          odrl:operator odrl:eq ;
+          odrl:rightOperand "true" ]
+        [ a odrl:Constraint ;
+          odrl:leftOperand [ a dsc:ClaimKey ; dsc:key "onboardingDone" ] ;
+          odrl:operator odrl:eq ;
+          odrl:rightOperand "true" ]
+    ) .
+
+:perm-read a odrl:Permission ;
+    odrl:target :asset-ledger ;
+    odrl:action odrl:read ;
+    odrl:constraint :constraint-sequence .
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:permission :perm-read .
+
+:claim-contract a dsc:ClaimAssertion ; dsc:key "contractSigned" ; rdf:value "true" .
+:claim-onboarding a dsc:ClaimAssertion ; dsc:key "onboardingDone" ; rdf:value "false" .
+
+:request a dsc:Request ;
+    odrl:target :asset-ledger ;
+    odrl:action odrl:read ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a ;
+    dsc:claim :claim-contract, :claim-onboarding .
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :asset-ledger ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm-read .
+
+:rr-a-perm-read a report:PermissionReport ;
+    report:rule :perm-read ;
+    report:activationState report:Inactive ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Unperformed ;
+    report:deonticState report:NonSet ;
+    report:premiseReport :pr-a-action, :pr-a-target, :pr-a-constraint .
+
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
+:pr-a-constraint a report:ConstraintReport ; report:satisfactionState report:Unsatisfied .

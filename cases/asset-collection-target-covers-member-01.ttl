@@ -1,0 +1,66 @@
+@base <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/cases/asset-collection-target-covers-member-01> .
+@prefix :      <#> .
+@prefix dsc:   <https://ds-labs-org.github.io/ds-odrl-compliance-rdf/ns#> .
+@prefix odrl:  <http://www.w3.org/ns/odrl/2/> .
+@prefix report: <https://w3id.org/force/compliance-report#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# Fills a gap the ds-prose-rs policy catalog found: no case had a rule
+# whose odrl:target is an odrl:AssetCollection, which the W3C ODRL IM's
+# own examples do (section 2.2.3). The request names one member asset;
+# its odrl:partOf the collection is what lets the collection-level
+# permission cover it. The profile is closed, so the grant is the
+# permission's doing, not a default. Engine-verified against
+# ds-odrl-engine-rs's compliance-rdf-runner (Request.asset_collections,
+# read from the requested target's own odrl:partOf).
+
+:testcase a dsc:TestCase ;
+    dct:title "odrl:AssetCollection: a permission whose target is a collection covers a request for one of its member assets, under a closed profile" ;
+    dct:created "2026-10-14T23:00:00Z"^^xsd:dateTime ;
+    dct:creator <mailto:shared-claude@unxwares.com> ;
+    dsc:request :request ;
+    dsc:expectedDecision "Allow" ;
+    dsc:expectedOutcome :report-a .
+
+:collection-reports a odrl:AssetCollection .
+
+:report-2026-q3 a odrl:Asset ;
+    odrl:partOf :collection-reports .
+
+:profile a odrl:Profile ;
+    odrl:action odrl:read ;
+    dsc:behaviour dsc:Closed .
+
+:perm-read-collection a odrl:Permission ;
+    odrl:target :collection-reports ;
+    odrl:action odrl:read .
+
+:policy-a a odrl:Set ;
+    odrl:assigner <did:web:provider.example> ;
+    odrl:permission :perm-read-collection .
+
+:request a dsc:Request ;
+    odrl:target :report-2026-q3 ;
+    odrl:action odrl:read ;
+    dsc:profile :profile ;
+    dsc:policy :policy-a .
+
+:the-ask a odrl:Request ;
+    odrl:permission [ a odrl:Permission ; odrl:action odrl:read ; odrl:target :report-2026-q3 ] .
+
+:report-a a report:PolicyReport ;
+    report:policy :policy-a ;
+    report:policyRequest :the-ask ;
+    report:ruleReport :rr-a-perm-read .
+
+:rr-a-perm-read a report:PermissionReport ;
+    report:rule :perm-read-collection ;
+    report:activationState report:Active ;
+    report:attemptState report:Attempted ;
+    report:performanceState report:Performed ;
+    report:deonticState report:Fulfilled ;
+    report:premiseReport :pr-a-action, :pr-a-target .
+
+:pr-a-action a report:ActionReport ; report:satisfactionState report:Satisfied .
+:pr-a-target a report:TargetReport ; report:satisfactionState report:Satisfied .
